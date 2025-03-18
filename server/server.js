@@ -74,9 +74,11 @@ io.on('connection', (socket) => {
   socket.on('login', (user) => {
     console.log('User logged in:', user);
     
+    // Make sure user is marked as online
     user.socketId = socket.id;
     user.online = true;
     user.lastSeen = Date.now();
+    user.lastActive = Date.now();
     
     users.set(socket.id, user);
     userStatus.set(user.id, {
@@ -87,12 +89,20 @@ io.on('connection', (socket) => {
     
     // Join general room by default
     socket.join('general');
+    
+    // Broadcast updated user list to everyone
     io.emit('userList', Array.from(users.values()));
   });
 
   socket.on('join_room', (data) => {
     const { room, user } = data;
     console.log(`User ${user.name} joining room: ${room}`);
+    
+    // Always ensure user is marked as online
+    if (user) {
+      user.online = true;
+      user.lastActive = Date.now();
+    }
     
     socket.join(room);
     
@@ -101,11 +111,20 @@ io.on('connection', (socket) => {
     }
     rooms.get(room).add(socket.id);
     
+    // Update user in the users Map
+    if (user) {
+      users.set(socket.id, {...user, online: true, lastActive: Date.now()});
+    }
+    
     const roomUsers = Array.from(rooms.get(room))
       .map(id => users.get(id))
       .filter(Boolean);
     
+    // Broadcast user list to room
     io.to(room).emit('room_users', roomUsers);
+    
+    // Also broadcast updated user list to everyone 
+    io.emit('userList', Array.from(users.values()));
   });
 
   socket.on('leave_room', (data) => {

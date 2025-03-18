@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { User } from '@/utils/messageUtils';
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +9,7 @@ interface UserBadgeProps {
 }
 
 const UserBadge = ({ user, onClick }: UserBadgeProps) => {
-  const isOnline = user.online;
+  const isOnline = user.online === true;
   
   return (
     <div 

@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.removeItem(item);
       });
       
-      // Also clear lastRoom data
+      // Always clear lastRoom data to ensure users start fresh
       localStorage.removeItem('lastRoom');
       
       // If we're using a real socket, disconnect
@@ -83,12 +83,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const parsedUser = JSON.parse(storedUser);
             // Only set Google users here (not guest users)
             if (parsedUser && parsedUser.id.startsWith('google-')) {
-              // Always ensure online=true is set
+              // Always ensure online=true is set when restoring the user
               const updatedUser = {
                 ...parsedUser,
-                online: true
+                online: true,
+                lastActive: Date.now()
               };
               setUser(updatedUser);
+              localStorage.setItem('chatUser', JSON.stringify(updatedUser));
             }
           } catch (e) {
             console.error("Error parsing stored user:", e);
@@ -167,8 +169,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           name,
           email,
           photoURL: picture,
-          online: true // Explicitly set online to true
+          online: true, // Explicitly set online to true
+          lastActive: Date.now() // Add timestamp for when user was last active
         };
+        
+        // Make sure to clear any stored room data to force returning to greeting
+        localStorage.removeItem('lastRoom');
         
         setUser(newUser);
         localStorage.setItem('chatUser', JSON.stringify(newUser));
@@ -228,8 +234,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       name: 'Test User',
       email: 'test@example.com',
       photoURL: 'https://ui-avatars.com/api/?name=Test+User&background=random',
-      online: true
+      online: true,
+      lastActive: Date.now()
     };
+    
+    // Make sure to clear any stored room data to force returning to greeting
+    localStorage.removeItem('lastRoom');
     
     setUser(mockUser);
     localStorage.setItem('chatUser', JSON.stringify(mockUser));
