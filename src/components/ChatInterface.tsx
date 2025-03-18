@@ -57,7 +57,7 @@ interface ChatInterfaceProps {
   connected?: boolean;
   privateRoomCode?: string | null;
   onSaveDrawing?: (imageUrl: string) => void;
-  onBackToGreeting?: () => void; // Added this prop to match the usage in Index.tsx
+  onBackToGreeting?: () => void;
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -84,7 +84,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   whiteboardData,
   connected = false,
   privateRoomCode = null,
-  onSaveDrawing
+  onSaveDrawing,
+  onBackToGreeting
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -116,7 +117,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   }, [onlineUsers]);
 
   const handleGoBack = () => {
-    onLeaveRoom();
+    if (onBackToGreeting) {
+      onBackToGreeting();
+    } else {
+      onLeaveRoom();
+    }
   };
 
   const handleScrollToBottom = () => {
@@ -245,6 +250,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </div>
             
             <div className="flex items-center gap-1 sm:gap-2">
+              {onBackToGreeting && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={onBackToGreeting}
+                  className="h-8 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hidden md:flex"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  <span className="text-xs">Back</span>
+                </Button>
+              )}
               <Popover open={isOnlineUsersPopoverOpen} onOpenChange={setIsOnlineUsersPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button 
@@ -341,6 +357,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             onSignOut={closeProfile} 
             onAddFriend={onAddFriend}
             friends={friends}
+            onBackToGreeting={onBackToGreeting}
           />
         </DialogContent>
       </Dialog>

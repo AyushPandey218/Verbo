@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User } from '@/utils/messageUtils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -53,7 +52,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
     });
   };
 
-  // Handle the close function if provided
   const handleSignOut = () => {
     if (onClose) {
       onClose();
