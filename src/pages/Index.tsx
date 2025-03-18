@@ -16,6 +16,7 @@ const Index = () => {
   const currentUser = user || guestUser;
   const { toast } = useToast();
   
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [groups, setGroups] = useState<any[]>([]);
   const [friends, setFriends] = useState<User[]>([]);
   const [localMessages, setLocalMessages] = useState<any[]>([]);
@@ -26,7 +27,7 @@ const Index = () => {
     joinRoom, 
     leaveRoom, 
     sendMessage, 
-    currentRoom,
+    currentRoom: socketRoom,
     addReaction,
     sendWhiteboardData,
     whiteboardData,
@@ -38,6 +39,12 @@ const Index = () => {
     reconnecting,
     error: socketError
   } = useSocket(currentUser);
+
+  useEffect(() => {
+    if (socketRoom) {
+      setCurrentRoom(socketRoom);
+    }
+  }, [socketRoom]);
 
   useEffect(() => {
     if (DEBUG_CONNECTION_STATUS) {
@@ -56,7 +63,11 @@ const Index = () => {
           const parsedUser = JSON.parse(storedUser);
           if (parsedUser && parsedUser.id && parsedUser.id.startsWith('guest-')) {
             console.log("Found stored guest user:", parsedUser);
-            setGuestUser(parsedUser);
+            const updatedGuestUser = {
+              ...parsedUser,
+              online: true
+            };
+            setGuestUser(updatedGuestUser);
           }
         } catch (e) {
           console.error("Error parsing stored guest user:", e);
@@ -65,6 +76,15 @@ const Index = () => {
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    if (currentUser) {
+      setCurrentRoom(null);
+      if (localStorage.getItem('lastRoom')) {
+        localStorage.removeItem('lastRoom');
+      }
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (socketError) {
@@ -83,6 +103,7 @@ const Index = () => {
       
       if (connected) {
         joinRoom(roomName, currentUser);
+        setCurrentRoom(roomName);
         
         if (roomName === 'random') {
           toast({
@@ -123,6 +144,7 @@ const Index = () => {
   const handleLeaveRoom = () => {
     if (currentUser && currentRoom) {
       leaveRoom(currentRoom, currentUser);
+      setCurrentRoom(null);
       
       if (currentRoom === 'random' && matchedUser) {
         toast({
@@ -136,6 +158,7 @@ const Index = () => {
   const handleBackToGreeting = () => {
     if (currentUser && currentRoom) {
       leaveRoom(currentRoom, currentUser);
+      setCurrentRoom(null);
       
       toast({
         description: "Returned to room selection",
@@ -148,7 +171,6 @@ const Index = () => {
     if (currentUser && currentRoom) {
       console.log("Index: Sending message:", content, "User:", currentUser, "Room:", currentRoom);
       
-      // Create a temporary local message - this creates an instant feeling
       const tempMessage = {
         id: generateId(),
         content,
@@ -156,13 +178,11 @@ const Index = () => {
         timestamp: Date.now(),
         room: currentRoom,
         reactions: [],
-        isLocal: true // Flag to identify locally created messages
+        isLocal: true
       };
       
-      // Add to local messages immediately
       setLocalMessages(prev => [...prev, tempMessage]);
       
-      // Then send through socket
       sendMessage(content, currentUser, currentRoom);
     } else {
       console.error("Cannot send message - missing user or room:", { user: currentUser, room: currentRoom });
@@ -172,7 +192,6 @@ const Index = () => {
   const handleSendVoiceMessage = (blob: Blob) => {
     if (currentUser && currentRoom) {
       try {
-        // Create object URL for the blob
         const voiceUrl = URL.createObjectURL(blob);
         
         console.log("Sending voice message with URL:", voiceUrl);
@@ -206,6 +225,7 @@ const Index = () => {
       setGuestUser(null);
       localStorage.removeItem('chatUser');
       handleLeaveRoom();
+      setCurrentRoom(null);
     } else {
       signOut();
     }
@@ -213,7 +233,11 @@ const Index = () => {
 
   const handleGuestSignIn = (guest: User) => {
     console.log("Guest signed in:", guest);
-    setGuestUser(guest);
+    const updatedGuest = {
+      ...guest,
+      online: true
+    };
+    setGuestUser(updatedGuest);
     toast({
       description: `Welcome, ${guest.name}!`,
       duration: 3000,
@@ -308,7 +332,6 @@ const Index = () => {
     console.log("Creating poll:", pollData);
     sendPoll(pollData);
     
-    // Show a toast to confirm poll creation
     toast({
       title: "Poll created",
       description: `Poll "${pollData.question}" created successfully`,
@@ -320,7 +343,6 @@ const Index = () => {
     console.log("Voting on poll:", pollId, "option:", optionId);
     votePoll(pollId, optionId);
     
-    // Show a toast to confirm vote
     toast({
       description: "Your vote has been recorded",
       duration: 3000,
@@ -420,7 +442,7 @@ const Index = () => {
         connected={connected}
         reconnecting={reconnecting}
         error={socketError}
-        onBackToLogin={undefined} // No back option at room selection
+        onBackToLogin={undefined}
       />
     );
   }

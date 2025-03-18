@@ -48,6 +48,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.removeItem(item);
       });
       
+      // Also clear lastRoom data
+      localStorage.removeItem('lastRoom');
+      
       // If we're using a real socket, disconnect
       if (window.socket) {
         window.socket.disconnect();
@@ -63,8 +66,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       console.log("User data cleaned up successfully");
     } else {
-      // Minimal cleanup - just remove the user
+      // Minimal cleanup - just remove the user and room data
       localStorage.removeItem('chatUser');
+      localStorage.removeItem('lastRoom');
     }
   };
 
@@ -79,7 +83,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const parsedUser = JSON.parse(storedUser);
             // Only set Google users here (not guest users)
             if (parsedUser && parsedUser.id.startsWith('google-')) {
-              setUser(parsedUser);
+              // Always ensure online=true is set
+              const updatedUser = {
+                ...parsedUser,
+                online: true
+              };
+              setUser(updatedUser);
             }
           } catch (e) {
             console.error("Error parsing stored user:", e);
@@ -158,7 +167,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           name,
           email,
           photoURL: picture,
-          online: true
+          online: true // Explicitly set online to true
         };
         
         setUser(newUser);
@@ -241,7 +250,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         window.socket.emit('user_offline', { userId: user.id });
       }
       
-      // Clean up user data
+      // Clean up user data including last room data
       cleanupUserData();
       
       setUser(null);

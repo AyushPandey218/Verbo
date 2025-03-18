@@ -105,13 +105,15 @@ class FirebaseService {
 
   public loginUser(user: User): void {
     this.currentUserId = user.id;
-    const userRef = ref(this.db, `users/${user.id}`);
-    set(userRef, {
+    const updatedUser = {
       ...user,
       lastActive: Date.now(),
       joinedAt: Date.now(),
       online: true
-    });
+    };
+    
+    const userRef = ref(this.db, `users/${user.id}`);
+    set(userRef, updatedUser);
     console.log("User logged in", user.id);
   }
 
@@ -136,20 +138,20 @@ class FirebaseService {
           }
         });
       }
+      
+      // Add user to room - IMPORTANT: Explicitly set online to true
+      const roomUserRef = ref(this.db, `rooms/${roomId}/users/${user.id}`);
+      set(roomUserRef, {
+        ...user,
+        joinedAt: Date.now(),
+        lastActive: Date.now(),
+        online: true
+      });
+      
+      // Set active room for user
+      const userRoomRef = ref(this.db, `users/${user.id}/activeRoom`);
+      set(userRoomRef, roomId);
     });
-    
-    // Add user to room
-    const roomUserRef = ref(this.db, `rooms/${roomId}/users/${user.id}`);
-    set(roomUserRef, {
-      ...user,
-      joinedAt: Date.now(),
-      lastActive: Date.now(),
-      online: true
-    });
-    
-    // Set active room for user
-    const userRoomRef = ref(this.db, `users/${user.id}/activeRoom`);
-    set(userRoomRef, roomId);
   }
 
   public markUserOffline(userId: string, roomId: string): void {
