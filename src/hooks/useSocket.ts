@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import SocketService from '@/utils/socketService';
 import { User, Message, generateId } from '@/utils/messageUtils';
 import { useToast } from '@/components/ui/use-toast';
 import { SOCKET_SERVER_URL, DEBUG_SOCKET_EVENTS } from '@/utils/config';
@@ -34,7 +34,7 @@ export interface UseSocketReturn {
 }
 
 export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSocketReturn => {
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [socket, setSocket] = useState<any | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
   const [matchedUser, setMatchedUser] = useState<User | null>(null);
@@ -48,6 +48,8 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
   const [whiteboardData, setWhiteboardData] = useState<string | undefined>(undefined);
   
   const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = useRef(10);
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   
   // Extract room code from room name if it's a private room
@@ -62,282 +64,135 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
     }
   }, [roomName]);
 
-  // Connect to socket server
+  // Connect to socket server with improved error handling
   useEffect(() => {
     if (!user) return;
     
-    try {
-      console.log('Connecting to socket server at:', SOCKET_SERVER_URL);
-      const newSocket = io(SOCKET_SERVER_URL, {
-        transports: ['websocket', 'polling'],
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        timeout: 20000
-      });
-      
-      setSocket(newSocket);
-      setReconnecting(false);
-      
-      return () => {
-        if (newSocket) {
-          console.log('Disconnecting socket');
-          newSocket.disconnect();
+    const connectSocket = async () => {
+      try {
+        setReconnecting(true);
+        console.log('Connecting to socket service...');
+        
+        const socketService = SocketService.getInstance();
+        const socketInstance = await socketService.connect();
+        
+        if (!socketInstance) {
+          throw new Error('Failed to initialize socket service');
         }
-      };
-    } catch (err) {
-      console.error('Socket connection error:', err);
-      setError('Failed to connect to chat server');
-      setConnected(false);
-    }
-  }, [user]);
+        
+        setSocket(socketInstance);
+        setConnected(true);
+        setReconnecting(false);
+        setError(null);
+        reconnectAttempts.current = 0;
+        
+        console.log('Socket connection established successfully');
+        
+        // Auto-join room if specified
+        if (roomName) {
+          console.log(`Auto-joining room: ${roomName}`);
+          joinRoom(roomName, user);
+        }
+      } catch (err: any) {
+        console.error('Socket connection error:', err);
+        setConnected(false);
+        setError(err.message || 'Failed to connect to chat service');
+        
+        // Implement reconnection logic with exponential backoff
+        reconnectAttempts.current += 1;
+        
+        if (reconnectAttempts.current <= maxReconnectAttempts.current) {
+          setReconnecting(true);
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current - 1), 30000);
+          
+          console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current}/${maxReconnectAttempts.current})`);
+          
+          if (reconnectTimer.current) {
+            clearTimeout(reconnectTimer.current);
+          }
+          
+          reconnectTimer.current = setTimeout(() => {
+            connectSocket();
+          }, delay);
+        } else {
+          setReconnecting(false);
+          setError('Failed to connect after multiple attempts. Please refresh the page.');
+          toast({
+            variant: "destructive",
+            title: "Connection Failed",
+            description: "Unable to establish a secure connection. Please refresh the page or try again later.",
+          });
+        }
+      }
+    };
+    
+    connectSocket();
+    
+    return () => {
+      // Clean up reconnection timer
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current);
+        reconnectTimer.current = null;
+      }
+      
+      // Disconnect socket
+      if (socket) {
+        const socketService = SocketService.getInstance();
+        socketService.disconnect();
+      }
+    };
+  }, [user, roomName, toast]);
 
   // Function to join a room
   const joinRoom = useCallback((roomName: string, user: User) => {
-    if (!socket || !connected) {
+    if (!socket) {
       console.error('Cannot join room: socket not connected');
       return;
     }
     
     console.log(`Joining room: ${roomName} as ${user.name}`);
-    socket.emit('join_room', { roomName, user });
     setCurrentRoom(roomName);
+    
+    // For Firebase implementation, use the appropriate method
+    if (socket.joinRoom && typeof socket.joinRoom === 'function') {
+      socket.joinRoom(roomName, user);
+    }
     
     if (roomName === 'random') {
       console.log('Finding random match');
-      socket.emit('find_random_match', { user });
+      if (socket.findRandomMatch && typeof socket.findRandomMatch === 'function') {
+        socket.findRandomMatch(user);
+      }
       setIsWaitingForMatch(true);
       setIsRandomChat(true);
     } else {
       setIsWaitingForMatch(false);
       setIsRandomChat(false);
     }
-  }, [socket, connected]);
+  }, [socket]);
 
   // Function to leave a room
   const leaveRoom = useCallback((roomName: string, user: User) => {
-    if (!socket || !connected) return;
+    if (!socket) return;
     
     console.log(`Leaving room: ${roomName}`);
-    socket.emit('leave_room', { roomName, user });
     setCurrentRoom(null);
     setMessages([]);
+    
+    // For Firebase implementation, use the appropriate method
+    if (socket.leaveRoom && typeof socket.leaveRoom === 'function') {
+      socket.leaveRoom(roomName, user);
+    }
     
     if (roomName === 'random') {
       setIsWaitingForMatch(false);
       setMatchedUser(null);
       setIsRandomChat(false);
     }
-  }, [socket, connected]);
+  }, [socket]);
 
-  // Handle socket connection events
-  useEffect(() => {
-    if (!socket) return;
-
-    const onConnect = () => {
-      console.log('Socket connected!');
-      setConnected(true);
-      setReconnecting(false);
-      setError(null);
-      reconnectAttempts.current = 0;
-      
-      // Login with user info after connection
-      socket.emit('login', user);
-      
-      if (roomName) {
-        console.log(`Auto-joining room: ${roomName}`);
-        socket.emit('join_room', { roomName, user });
-        
-        if (roomName === 'random') {
-          console.log('Looking for random match');
-          socket.emit('find_random_match', { user });
-          setIsWaitingForMatch(true);
-          setIsRandomChat(true);
-        } else {
-          setIsWaitingForMatch(false);
-          setIsRandomChat(false);
-        }
-      }
-    };
-
-    const onDisconnect = (reason: string) => {
-      console.log('Socket disconnected:', reason);
-      setConnected(false);
-      
-      if (reason === 'io server disconnect' || reason === 'transport close') {
-        setReconnecting(true);
-        
-        reconnectAttempts.current += 1;
-        if (reconnectAttempts.current <= 5) {
-          console.log(`Reconnect attempt ${reconnectAttempts.current}`);
-          socket.connect();
-        } else {
-          setReconnecting(false);
-          setError('Connection to server lost. Please refresh the page.');
-        }
-      }
-    };
-
-    const onConnectError = (err: Error) => {
-      console.error('Socket connection error:', err);
-      setError(`Connection error: ${err.message}`);
-      setConnected(false);
-      
-      reconnectAttempts.current += 1;
-      if (reconnectAttempts.current <= 5) {
-        setReconnecting(true);
-      } else {
-        setReconnecting(false);
-      }
-    };
-
-    // Register connection event handlers
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('connect_error', onConnectError);
-
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('connect_error', onConnectError);
-    };
-  }, [socket, user, roomName]);
-
-  // Handle real-time messages and events
-  useEffect(() => {
-    if (!socket || !connected) return;
-
-    const handleChatMessage = (message: Message) => {
-      if (DEBUG_SOCKET_EVENTS) console.log('Received chat message:', message);
-      
-      // Only add messages for the current room
-      if (message.room === roomName) {
-        setMessages(prevMessages => {
-          // Check if message already exists
-          if (prevMessages.some(m => m.id === message.id)) {
-            return prevMessages;
-          }
-          return [...prevMessages, message];
-        });
-      }
-    };
-
-    const handleVoiceMessage = (message: Message) => {
-      if (DEBUG_SOCKET_EVENTS) console.log('Received voice message:', message);
-      
-      // Only add messages for the current room
-      if (message.room === roomName) {
-        setMessages(prevMessages => {
-          // Check if message already exists
-          if (prevMessages.some(m => m.id === message.id)) {
-            return prevMessages;
-          }
-          return [...prevMessages, message];
-        });
-      }
-    };
-
-    const handleUserList = (users: User[]) => {
-      if (DEBUG_SOCKET_EVENTS) console.log('Received user list:', users);
-      setOnlineUsers(users);
-    };
-
-    const handleRoomUsers = (users: User[]) => {
-      if (DEBUG_SOCKET_EVENTS) console.log('Received room users:', users);
-      setOnlineUsers(users);
-    };
-
-    const handleRandomMatchFound = (data: { matchedUser: User, privateRoom: string }) => {
-      console.log('Random match found:', data);
-      
-      setMatchedUser(data.matchedUser);
-      setIsRandomChat(true);
-      
-      // Switch to the private room
-      socket.emit('leave_room', { roomName, user });
-      socket.emit('join_room', { roomName: data.privateRoom, user });
-      
-      toast({
-        title: 'Match Found!',
-        description: `You are now chatting with ${data.matchedUser.name}`,
-      });
-    };
-
-    const handleRandomMatchEnded = () => {
-      console.log('Random match ended');
-      toast({
-        title: 'Chat Ended',
-        description: 'The other person has left the chat',
-      });
-    };
-
-    const handleWaitingForMatch = () => {
-      console.log('Waiting for a match...');
-      setIsWaitingForMatch(true);
-      toast({
-        title: 'Finding a match...',
-        description: 'Please wait while we find someone for you to chat with',
-      });
-    };
-
-    const handleReactionAdded = (data: { messageId: string, reaction: string, user: User }) => {
-      if (DEBUG_SOCKET_EVENTS) console.log('Reaction added:', data);
-      
-      setMessages(prevMessages => {
-        return prevMessages.map(message => {
-          if (message.id === data.messageId) {
-            const updatedMessage = { ...message };
-            
-            if (!updatedMessage.reactions) {
-              updatedMessage.reactions = [];
-            }
-            
-            updatedMessage.reactions.push({
-              user: data.user,
-              reaction: data.reaction,
-              timestamp: Date.now() // Adding timestamp here
-            });
-            
-            return updatedMessage;
-          }
-          return message;
-        });
-      });
-    };
-
-    const handleWhiteboardData = (data: { data: string }) => {
-      if (DEBUG_SOCKET_EVENTS) console.log('Received whiteboard data');
-      setWhiteboardData(data.data);
-    };
-
-    // Chat and message event handlers
-    socket.on('chat message', handleChatMessage);
-    socket.on('voice_message', handleVoiceMessage);
-    socket.on('userList', handleUserList);
-    socket.on('room_users', handleRoomUsers);
-    socket.on('random_match_found', handleRandomMatchFound);
-    socket.on('random_match_ended', handleRandomMatchEnded);
-    socket.on('waiting_for_match', handleWaitingForMatch);
-    socket.on('reaction_added', handleReactionAdded);
-    socket.on('whiteboard_data', handleWhiteboardData);
-    socket.on('message_received', handleChatMessage); // Added this to make sure messages are received
-
-    return () => {
-      socket.off('chat message', handleChatMessage);
-      socket.off('voice_message', handleVoiceMessage);
-      socket.off('userList', handleUserList);
-      socket.off('room_users', handleRoomUsers);
-      socket.off('random_match_found', handleRandomMatchFound);
-      socket.off('random_match_ended', handleRandomMatchEnded);
-      socket.off('waiting_for_match', handleWaitingForMatch);
-      socket.off('reaction_added', handleReactionAdded);
-      socket.off('whiteboard_data', handleWhiteboardData);
-      socket.off('message_received', handleChatMessage);
-    };
-  }, [socket, connected, roomName, toast]);
-
-  // Function to send text messages
   const sendMessage = useCallback((content: string, user: User, roomName: string, voiceData?: any) => {
-    if (!socket || !connected || !content.trim()) return;
+    if (!socket || !content.trim()) return;
     
     const message: Message = {
       id: generateId(),
@@ -355,17 +210,16 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
     
     if (DEBUG_SOCKET_EVENTS) console.log('Sending message:', message);
     
-    // Send to socket server
-    socket.emit('message', message);
-    socket.emit('send_message', message); // Add this to ensure messages are sent correctly
+    if (socket.sendMessage && typeof socket.sendMessage === 'function') {
+      socket.sendMessage(message);
+    }
     
-    // Optimistically add to local messages
     setMessages(prev => [...prev, message]);
-  }, [socket, connected]);
+  }, [socket]);
 
   // Function to send voice messages
   const sendVoiceMessage = useCallback((blob: Blob, audioUrl: string) => {
-    if (!socket || !connected) return;
+    if (!socket) return;
     
     const message: Message = {
       id: generateId(),
@@ -380,16 +234,16 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
     
     if (DEBUG_SOCKET_EVENTS) console.log('Sending voice message:', message);
     
-    // Send to socket server
-    socket.emit('voice_message', message);
+    if (socket.sendVoiceMessage && typeof socket.sendVoiceMessage === 'function') {
+      socket.sendVoiceMessage(message);
+    }
     
-    // Optimistically add to local messages
     setMessages(prev => [...prev, message]);
-  }, [socket, connected]);
+  }, [socket]);
 
   // Function to send whiteboard data
   const sendWhiteboardData = useCallback((data: any) => {
-    if (!socket || !connected) return;
+    if (!socket) return;
     
     const whiteboardDataObj = {
       data,
@@ -397,12 +251,14 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
       sender: user.id
     };
     
-    socket.emit('whiteboard_data', whiteboardDataObj);
-  }, [socket, connected]);
+    if (socket.updateWhiteboardData && typeof socket.updateWhiteboardData === 'function') {
+      socket.updateWhiteboardData(roomName, user.id, data);
+    }
+  }, [socket]);
 
   // Function to save drawing as image message
   const saveDrawing = useCallback((imageUrl: string) => {
-    if (!socket || !connected) return;
+    if (!socket) return;
     
     const message: Message = {
       id: generateId(),
@@ -413,22 +269,19 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
       reactions: []
     };
     
-    // Send to socket server
-    socket.emit('message', message);
-    socket.emit('send_message', message); // Add this to ensure messages are sent
-    
-    // Optimistically add to local messages
-    setMessages(prev => [...prev, message]);
+    if (socket.sendMessage && typeof socket.sendMessage === 'function') {
+      socket.sendMessage(message);
+    }
     
     toast({
       description: "Drawing saved to chat!",
       duration: 3000,
     });
-  }, [socket, connected, user, roomName, toast]);
+  }, [socket, user, roomName, toast]);
 
   // Function to create a poll
   const sendPoll = useCallback((pollData: any) => {
-    if (!socket || !connected) return;
+    if (!socket) return;
     
     // Add missing fields
     const poll = {
@@ -449,17 +302,16 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
     
     if (DEBUG_SOCKET_EVENTS) console.log('Sending poll:', message);
     
-    // Send to socket server
-    socket.emit('message', message);
-    socket.emit('send_message', message); // Add this to ensure messages are sent
+    if (socket.sendMessage && typeof socket.sendMessage === 'function') {
+      socket.sendMessage(message);
+    }
     
-    // Optimistically add to local messages
     setMessages(prev => [...prev, message]);
-  }, [socket, connected, user, roomName]);
+  }, [socket, user, roomName]);
 
   // Function to vote on a poll
   const votePoll = useCallback((pollId: string, optionId: string) => {
-    if (!socket || !connected) return;
+    if (!socket) return;
     
     const voteData = {
       pollId,
@@ -470,7 +322,10 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
     };
     
     if (DEBUG_SOCKET_EVENTS) console.log('Sending poll vote:', voteData);
-    socket.emit('poll_vote', voteData);
+    
+    if (socket.votePoll && typeof socket.votePoll === 'function') {
+      socket.votePoll(pollId, optionId, user.id, roomName);
+    }
     
     // Optimistically update UI
     setMessages(prevMessages => {
@@ -506,22 +361,26 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
         return message;
       });
     });
-  }, [socket, connected, user, roomName]);
+  }, [socket, user, roomName]);
 
   // Function to add reaction to a message
   const addReaction = useCallback((messageId: string, reaction: string, user: User) => {
-    if (!socket || !connected) return;
+    if (!socket) return;
     
     const reactionData = {
       messageId,
       reaction,
       user,
       room: currentRoom,
-      timestamp: Date.now() // Adding timestamp here
+      timestamp: Date.now()
     };
     
     if (DEBUG_SOCKET_EVENTS) console.log('Adding reaction:', reactionData);
-    socket.emit('add_reaction', reactionData);
+    
+    // For Firebase implementation, use the appropriate method
+    if (socket.addReaction && typeof socket.addReaction === 'function') {
+      socket.addReaction(messageId, reaction, user, currentRoom || 'general');
+    }
     
     // Optimistically update UI
     setMessages(prevMessages => {
@@ -536,7 +395,7 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
           updatedMessage.reactions.push({
             user,
             reaction,
-            timestamp: Date.now() // Adding timestamp here
+            timestamp: Date.now()
           });
           
           return updatedMessage;
@@ -544,7 +403,7 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
         return message;
       });
     });
-  }, [socket, connected, currentRoom]);
+  }, [socket, currentRoom]);
 
   return {
     messages,
