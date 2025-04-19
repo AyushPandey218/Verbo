@@ -118,15 +118,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
       <div className="flex-shrink-0 mt-1">
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger>
               <Avatar className={`h-8 w-8 border transition-all ${isSender ? 'border-violet-200' : 'border-gray-200'}`}>
-                {message.sender.photoURL ? (
-                  <AvatarImage src={message.sender.photoURL} alt={message.sender.name} />
-                ) : (
-                  <AvatarFallback className={isSender ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white' : 'bg-gray-200'}>
-                    {message.sender.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                )}
+                <AvatarImage src={message.sender.photoURL} alt={message.sender.name} />
+                <AvatarFallback className={isSender ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white' : 'bg-gray-200'}>
+                  {message.sender.name.charAt(0).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
             </TooltipTrigger>
             <TooltipContent side={isSender ? "left" : "right"} align="center" className="bg-gray-900 text-white text-xs">

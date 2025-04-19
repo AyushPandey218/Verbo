@@ -3,6 +3,7 @@ import SocketService from '@/utils/socketService';
 import { User, Message, generateId } from '@/utils/messageUtils';
 import { useToast } from '@/components/ui/use-toast';
 import { SOCKET_SERVER_URL, DEBUG_SOCKET_EVENTS } from '@/utils/config';
+import { isOffline } from '@/utils/socket';
 
 interface UseSocketProps {
   user: User;
@@ -30,6 +31,7 @@ export interface UseSocketReturn {
   whiteboardData: string | undefined;
   joinRoom: (roomName: string, user: User) => void;
   leaveRoom: (roomName: string, user: User) => void;
+  offlineMode: boolean;
 }
 
 export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSocketReturn => {
@@ -45,6 +47,8 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
   const [isWaitingForMatch, setIsWaitingForMatch] = useState(false);
   const [currentRoom, setCurrentRoom] = useState<string | null>(roomName || null);
   const [whiteboardData, setWhiteboardData] = useState<string | undefined>(undefined);
+  
+  const [offlineMode, setOfflineMode] = useState(isOffline());
   
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = useRef(10);
@@ -67,6 +71,21 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
   useEffect(() => {
     if (!user) return;
     
+    // Check offline mode first
+    if (isOffline()) {
+      setOfflineMode(true);
+      setConnected(false);
+      setReconnecting(false);
+      setError("You are in offline mode");
+      console.log("Starting in offline mode");
+      
+      // If we're in offline mode, we still need to set up a socket instance (dummy)
+      const socketService = SocketService.getInstance();
+      setSocket(socketService.getSocket());
+      
+      return;
+    }
+    
     const connectSocket = async () => {
       try {
         setReconnecting(true);
@@ -77,6 +96,15 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
         
         if (!socketInstance) {
           throw new Error('Failed to initialize socket service');
+        }
+        
+        // Check if we switched to offline mode during connection
+        if (isOffline()) {
+          setOfflineMode(true);
+          setConnected(false);
+          setReconnecting(false);
+          setError("You are in offline mode");
+          return;
         }
         
         setSocket(socketInstance);
@@ -94,6 +122,16 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
         }
       } catch (err: any) {
         console.error('Socket connection error:', err);
+        
+        // Check if we're in offline mode
+        if (isOffline()) {
+          setOfflineMode(true);
+          setConnected(false);
+          setReconnecting(false);
+          setError("You are in offline mode");
+          return;
+        }
+        
         setConnected(false);
         setError(err.message || 'Failed to connect to chat service');
         
@@ -115,19 +153,36 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
           }, delay);
         } else {
           setReconnecting(false);
-          setError('Failed to connect after multiple attempts. Please refresh the page.');
+          setError('Failed to connect after multiple attempts. Please refresh the page or enable offline mode.');
           toast({
             variant: "destructive",
             title: "Connection Failed",
-            description: "Unable to establish a secure connection. Please refresh the page or try again later.",
+            description: "Unable to establish a secure connection. You can continue in offline mode with limited functionality.",
           });
         }
       }
     };
     
+    // Check for online status changes
+    const handleOnlineStatusChange = () => {
+      setOfflineMode(isOffline());
+      if (!isOffline() && !connected && !reconnecting) {
+        // We're back online, try to connect
+        reconnectAttempts.current = 0;
+        connectSocket();
+      }
+    };
+    
+    window.addEventListener('online', handleOnlineStatusChange);
+    window.addEventListener('offline', handleOnlineStatusChange);
+    
     connectSocket();
     
     return () => {
+      // Remove event listeners
+      window.removeEventListener('online', handleOnlineStatusChange);
+      window.removeEventListener('offline', handleOnlineStatusChange);
+      
       // Clean up reconnection timer
       if (reconnectTimer.current) {
         clearTimeout(reconnectTimer.current);
@@ -424,6 +479,7 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
     saveDrawing,
     whiteboardData,
     joinRoom,
-    leaveRoom
+    leaveRoom,
+    offlineMode,
   };
 };

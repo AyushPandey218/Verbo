@@ -1,3 +1,4 @@
+
 # Vercel Deployment Guide for Verbo Chat
 
 This guide will help you deploy the Verbo chat application on Vercel, ensuring that WebSockets work correctly for real-time communication.

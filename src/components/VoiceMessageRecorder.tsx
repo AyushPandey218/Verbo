@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Send, Trash2, Volume2, Pause, Play, LoaderCircle } from 'lucide-react';
+import { Mic, Square, Send, Trash2, Volume2, Pause, Play, Loader } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -282,7 +282,7 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
             )}
             disabled={recordButtonPulsing || requestingMic}
           >
-            {recordButtonPulsing ? <LoaderCircle size={20} className="animate-spin" /> : <Mic size={20} />}
+            {recordButtonPulsing ? <Loader size={20} className="animate-spin" /> : <Mic size={20} />}
           </Button>
           <div className="flex-1 flex items-center">
             <span className="text-sm text-muted-foreground ml-2">
@@ -325,7 +325,7 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
             <div className="flex flex-col gap-2 bg-violet-50 px-3 py-2 rounded-lg w-full">
               {isProcessing ? (
                 <div className="flex items-center justify-center py-2">
-                  <LoaderCircle size={20} className="text-violet-500 animate-spin" />
+                  <Loader size={20} className="text-violet-500 animate-spin" />
                   <span className="ml-2 text-xs text-violet-600">Processing audio...</span>
                 </div>
               ) : (

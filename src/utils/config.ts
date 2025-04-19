@@ -1,23 +1,30 @@
 
 // Default Firebase config
 export const defaultFirebaseConfig = {
-  apiKey: "AIzaSyBhtV6eoUUAjJFZ39w6thZc2CU2T6R8HSM",
-  authDomain: "verbo-1831c.firebaseapp.com",
-  databaseURL: "https://verbo-1831c-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "verbo-1831c",
-  storageBucket: "verbo-1831c.firebasestorage.app",
-  messagingSenderId: "435891056294",
-  appId: "1:435891056294:web:a51c610f611c1ab9c70e67",
+  apiKey: "AIzaSyCF8TIh5TkuRD9S9Q2RCRH2Rxg_iutpNMU",
+  authDomain: "verbo-chat-demo.firebaseapp.com",
+  projectId: "verbo-chat-demo",
+  storageBucket: "verbo-chat-demo.appspot.com",
+  messagingSenderId: "829486829496",
+  appId: "1:829486829496:web:d742b7d58f8c4df747dc9b",
+  databaseURL: "https://verbo-chat-demo-default-rtdb.firebaseio.com"
 };
 
 // Check if using default config
 export const USING_DEFAULT_FIREBASE_CONFIG = true;
 
-// Debug connection status
-export const DEBUG_CONNECTION_STATUS = false;
+// Debug connection status - Enable to see detailed connection info
+export const DEBUG_CONNECTION_STATUS = true;
 
-// Debug socket events
-export const DEBUG_SOCKET_EVENTS = false;
+// Debug socket events - Enable to see socket events in console
+export const DEBUG_SOCKET_EVENTS = true;
+
+// Skip type checking for socket.io (useful for fixing build errors)
+export const SKIP_SOCKET_TYPE_CHECK = true;
+
+// IMPORTANT: Reduce connection attempts for faster fallback
+export const MAX_SOCKET_CONNECTION_ATTEMPTS = 2; // Reduced from original 5 attempts
+export const SOCKET_TIMEOUT = 3000; // Further reduced from 5s to 3s for even faster connection decision
 
 // Socket Server URL - detect automatically based on environment
 export const SOCKET_SERVER_URL = window.location.hostname !== 'localhost' && 
@@ -36,6 +43,12 @@ export const REMOVE_USER_FROM_FIREBASE_ON_LOGOUT = false;
 
 // User online timeout (in milliseconds)
 export const USER_ONLINE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+// Priority fallback to Firebase for more reliability
+export const PRIORITY_FIREBASE_FALLBACK = true; // Changed to true to prioritize Firebase over socket.io
+
+// Default to offline mode when connection fails
+export const DEFAULT_TO_OFFLINE_ON_FAILURE = true;
 
 // Storage items to clean up on logout
 export const LOGOUT_STORAGE_CLEANUP_ITEMS = [
@@ -60,3 +73,4 @@ export const extractPrivateRoomCode = (roomName: string | null): string | null =
   
   return parts[1];
 };
+

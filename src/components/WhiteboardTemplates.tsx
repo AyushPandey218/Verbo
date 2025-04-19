@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Grid2X2, Layout, Table2, MonitorSmartphone, StickyNote, Workflow, CalendarDays } from 'lucide-react';
+import { LayoutGrid, Layout, Table2, MonitorSmartphone, StickyNote, Workflow, CalendarDays } from 'lucide-react';
 
 interface TemplateProps {
   name: string;
@@ -31,7 +31,7 @@ const WhiteboardTemplates: React.FC<WhiteboardTemplatesProps> = ({ onSelectTempl
   const templates = [
     {
       name: "Blank Canvas",
-      icon: <Grid2X2 size={24} />,
+      icon: <LayoutGrid size={24} />,
       data: { type: "blank" }
     },
     {

@@ -10,6 +10,7 @@ export interface User {
   joinedAt?: number;
   isGuest?: boolean;
   lastActive?: number;
+  gender?: 'male' | 'female' | 'other';
 }
 
 export interface Message {

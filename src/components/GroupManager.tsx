@@ -106,7 +106,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           <span>Groups</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="glass w-[280px] sm:w-[350px]">
+      <SheetContent side="right" className="w-[280px] sm:w-[350px]">
         <SheetHeader>
           <SheetTitle>Your Groups</SheetTitle>
         </SheetHeader>
@@ -114,7 +114,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         <div className="mt-6 space-y-4">
           <div className="flex gap-2">
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger>
+              <DialogTrigger asChild>
                 <Button size="sm" variant="outline" className="gap-1 flex-1">
                   <Plus size={14} />
                   <span>Create Group</span>
@@ -142,7 +142,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
             </Dialog>
             
             <Dialog open={isJoinOpen} onOpenChange={setIsJoinOpen}>
-              <DialogTrigger>
+              <DialogTrigger asChild>
                 <Button size="sm" variant="outline" className="gap-1 flex-1">
                   <Share2 size={14} />
                   <span>Join Group</span>

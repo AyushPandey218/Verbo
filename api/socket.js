@@ -1,3 +1,4 @@
+
 // Socket.io serverless function for Vercel
 const { Server } = require('socket.io');
 const { createServer } = require('http');
@@ -34,7 +35,7 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  path: '/api/socket',  // Keep this as /api/socket for server side
+  path: '/socket.io',      // Changed to /socket.io instead of /api/socket for consistency
   allowEIO3: true,      // Added compatibility for older socket.io clients
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,   // Increased timeout
@@ -351,7 +352,7 @@ module.exports = (req, res) => {
         'Access-Control-Allow-Methods': 'GET,OPTIONS,POST',
         'Access-Control-Allow-Headers': '*'
       });
-      res.end('Socket.IO server is running. Connect to /api/socket');
+      res.end('Socket.IO server is running. Connect to /socket.io');
     }
   }
 };

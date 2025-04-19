@@ -22,7 +22,7 @@ const EnhancedColorPicker: React.FC<ColorPickerProps> = ({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
+      <PopoverTrigger>
         <Button variant="outline" size="icon" className="h-8 w-8">
           <div
             className="w-4 h-4 rounded-full border border-gray-300"
