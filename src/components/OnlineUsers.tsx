@@ -23,17 +23,13 @@ const OnlineUsers: React.FC<OnlineUsersProps> = ({
   const [activeTab, setActiveTab] = useState<'online' | 'all'>('online');
   const [offlineUsers, setOfflineUsers] = useState<User[]>([]);
   
-  // Clear cache on component mount
   useEffect(() => {
     localStorage.removeItem('onlineUsersCache');
   }, []);
   
-  // Filter for strictly online users (with online=true AND active timestamp)
   const onlineUsersList = users.filter(user => {
-    // User must explicitly have online=true
     if (user.online !== true) return false;
     
-    // Check if user has been active recently
     const now = Date.now();
     if (user.lastActive && (now - user.lastActive > USER_ONLINE_TIMEOUT)) {
       return false;
@@ -42,20 +38,17 @@ const OnlineUsers: React.FC<OnlineUsersProps> = ({
     return true;
   });
   
-  // Track offline users
   useEffect(() => {
     const currentTime = Date.now();
     const onlineUserIds = new Set(onlineUsersList.map(user => user.id));
     
     setOfflineUsers(prev => {
-      // Keep offline users that aren't now online and haven't timed out completely
       const filteredOffline = prev.filter(user => {
         const isNowOnline = onlineUserIds.has(user.id);
         const hasTimedOut = user.leftAt && (currentTime - user.leftAt > USER_ONLINE_TIMEOUT * 3);
         return !isNowOnline && !hasTimedOut;
       });
       
-      // Add new offline users (users that are explicitly offline)
       const newOfflineUsers = users.filter(user => {
         const isExplicitlyOffline = user.online === false;
         const notInOfflineList = !filteredOffline.some(offlineUser => offlineUser.id === user.id);
@@ -66,7 +59,6 @@ const OnlineUsers: React.FC<OnlineUsersProps> = ({
     });
   }, [users, onlineUsersList]);
   
-  // Combine online and offline users for the "All" tab, ensuring no duplicates
   const allUsers = [...onlineUsersList];
   offlineUsers.forEach(offlineUser => {
     if (!onlineUsersList.some(user => user.id === offlineUser.id)) {

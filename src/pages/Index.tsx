@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -38,7 +39,7 @@ const Index = () => {
     connected,
     reconnecting,
     error: socketError
-  } = useSocket(currentUser);
+  } = useSocket({ user: currentUser || undefined as any });
 
   useEffect(() => {
     if (socketRoom) {
