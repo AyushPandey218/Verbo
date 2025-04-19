@@ -1,4 +1,3 @@
-
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getDatabase, ref, onValue, push, set, remove, get, child, DataSnapshot, Database } from "firebase/database";
 import { User, Message, generateId } from "./messageUtils";

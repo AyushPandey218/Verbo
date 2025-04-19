@@ -1,13 +1,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Message, User } from '@/utils/messageUtils';
 import { formatTimestamp } from '@/utils/messageUtils';
 import MessageReactions from './MessageReactions';
 import PollMessage from './PollMessage';
-import { Volume2, PlayCircle, PauseCircle, CheckCircle } from 'lucide-react';
+import { Volume2, PlayCircle, PauseCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
+import MessageInsights from './MessageInsights';
+import MessageEmbed from './MessageEmbed';
 
 interface MessageBubbleProps {
   message: Message;
@@ -22,14 +25,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [audioProgress, setAudioProgress] = useState(0);
-  const isSender = message.sender.id === user.id;
   const audioProgressRef = useRef<number>(0);
   const audioIntervalRef = useRef<number | null>(null);
   
-  // Check if this is a poll message by looking for the special prefix
-  const isPollMessage = message.content.startsWith('__POLL__:');
+  const isSender = message.sender.id === user.id;
   
-  // If it's a poll message, parse the JSON data
+  const isPollMessage = message.content?.startsWith('__POLL__:');
+  const isGifMessage = message.content?.startsWith('[gif]') && message.content?.endsWith('[/gif]');
+  const isStickerMessage = message.content?.startsWith('[sticker]') && message.content?.endsWith('[/sticker]');
+  
   let pollData = null;
   if (isPollMessage && onVotePoll) {
     try {
@@ -43,15 +47,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
 
   useEffect(() => {
     if (message.isVoiceMessage && message.voiceUrl) {
+      console.log("Voice message URL in MessageBubble:", message.voiceUrl);
       const audio = new Audio(message.voiceUrl);
       setAudioElement(audio);
       
-      // Get audio duration when metadata is loaded
       audio.addEventListener('loadedmetadata', () => {
+        console.log("Audio duration loaded:", audio.duration);
         setAudioDuration(audio.duration);
       });
       
-      // Update progress during playback
       audio.addEventListener('timeupdate', () => {
         const progress = (audio.currentTime / audio.duration) * 100;
         setAudioProgress(progress);
@@ -77,7 +81,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
         if (audioIntervalRef.current) {
           window.clearInterval(audioIntervalRef.current);
         }
-        URL.revokeObjectURL(message.voiceUrl);
       };
     }
   }, [message.isVoiceMessage, message.voiceUrl]);
@@ -100,7 +103,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
     }
   };
 
-  // Format audio duration as mm:ss
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -153,8 +155,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
               }}
             />
           </div>
+        ) : isGifMessage || isStickerMessage ? (
+          <div className="inline-block">
+            <MessageEmbed url={message.content} />
+          </div>
         ) : message.isVoiceMessage ? (
-          // Enhanced voice message UI
           <div className={`rounded-2xl p-3 ${
             isSender 
               ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white' 
@@ -178,7 +183,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
               </button>
               
               <div className="flex-1">
-                {/* Progress bar */}
                 <div className="w-full h-1.5 rounded-full overflow-hidden bg-black/10 dark:bg-white/10 mb-1.5">
                   <div 
                     className={`h-full ${isSender ? 'bg-white' : 'bg-violet-600'}`} 
@@ -186,7 +190,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
                   ></div>
                 </div>
                 
-                {/* Waveform visualization */}
                 <div className="flex items-center gap-0.5 h-6 opacity-80">
                   {[...Array(12)].map((_, i) => (
                     <div 
@@ -203,7 +206,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
                   ))}
                 </div>
                 
-                {/* Duration */}
                 <div className="text-xs mt-1 opacity-80">
                   {audioDuration > 0 ? formatDuration(audioDuration) : "Voice message"}
                 </div>
@@ -211,19 +213,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
             </div>
           </div>
         ) : (
-          // Enhanced text message
-          <div 
-            className={`rounded-2xl p-3 ${
-              isSender 
-                ? 'chat-bubble-user shadow-sm shadow-violet-200' 
-                : 'chat-bubble-other'
-            } transition-all`}
-          >
-            {message.content}
-          </div>
+          <>
+            <div 
+              className={`rounded-2xl p-3 ${
+                isSender 
+                  ? 'chat-bubble-user shadow-sm shadow-violet-200' 
+                  : 'chat-bubble-other'
+              } transition-all`}
+            >
+              {message.content}
+            </div>
+            <div className={`mt-1 ${isSender ? 'self-end' : 'self-start'}`}>
+              <MessageInsights message={message.content} />
+            </div>
+          </>
         )}
         
-        {/* Reactions */}
         <MessageReactions 
           reactions={message.reactions || []} 
           messageId={message.id} 

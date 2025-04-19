@@ -1,12 +1,26 @@
 
 const concurrently = require('concurrently');
 const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
+
+// Run dependency check first
+try {
+  console.log('Checking dependencies before starting...');
+  execSync('node ensure-deps.js', { stdio: 'inherit' });
+} catch (e) {
+  console.error('Failed to check dependencies:', e.message);
+  process.exit(1);
+}
 
 const PORT = process.env.PORT || 3000;
 
+// Check if vite is accessible via npx or fallback to direct executable
+const viteCommand = 'node run-vite.js';
+
 concurrently([
   {
-    command: 'vite',
+    command: viteCommand,
     name: 'frontend',
     prefixColor: 'blue',
     env: { PORT: process.env.PORT || '5173' }

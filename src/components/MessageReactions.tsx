@@ -100,7 +100,7 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
       
       {/* Reaction picker */}
       <Popover>
-        <PopoverTrigger asChild>
+        <PopoverTrigger>
           <Button 
             variant="ghost" 
             size="sm" 

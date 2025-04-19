@@ -1,3 +1,4 @@
+
 import { formatDistanceToNow } from 'date-fns';
 
 // Define types
@@ -62,7 +63,8 @@ export const generateGroupCode = (): string => {
 
 // Format timestamp in a friendly way
 export const formatTimestamp = (timestamp: number): string => {
-  return formatDistanceToNow(timestamp, { addSuffix: true });
+  // Updated to remove addSuffix option as it's not available in the newer date-fns version
+  return formatDistanceToNow(timestamp);
 };
 
 // Check if a message is from the current user

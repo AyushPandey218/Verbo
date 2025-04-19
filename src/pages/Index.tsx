@@ -189,21 +189,34 @@ const Index = () => {
     }
   };
 
-  const handleSendVoiceMessage = (blob: Blob) => {
+  const handleSendVoiceMessage = (blob: Blob, audioUrl: string) => {
     if (currentUser && currentRoom) {
       try {
-        const voiceUrl = URL.createObjectURL(blob);
+        console.log("Sending voice message with URL:", audioUrl);
         
-        console.log("Sending voice message with URL:", voiceUrl);
+        // Create a new FileReader to read the blob as base64
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          // The result is a base64 string representation of the file
+          const base64data = reader.result?.toString().split(',')[1]; // Remove the data URL prefix
+          
+          // Send the voice message
+          sendMessage("Voice message", currentUser, currentRoom, {
+            isVoiceMessage: true,
+            audioUrl: audioUrl,
+            audioData: base64data
+          });
+          
+          toast({
+            description: "Voice message sent",
+            duration: 3000,
+          });
+        };
         
-        sendMessage("Voice message", currentUser, currentRoom, true, voiceUrl);
-        
-        toast({
-          description: "Voice message sent",
-          duration: 3000,
-        });
+        // Read the blob as a data URL (base64)
+        reader.readAsDataURL(blob);
       } catch (error) {
-        console.error("Error creating voice message URL:", error);
+        console.error("Error creating voice message:", error);
         toast({
           variant: "destructive",
           title: "Error",

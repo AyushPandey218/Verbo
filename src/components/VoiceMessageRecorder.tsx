@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Send, Trash2, Volume2 } from 'lucide-react';
+import { Mic, Square, Send, Trash2, Volume2, Pause, Play, LoaderCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
 
 interface VoiceMessageRecorderProps {
-  onVoiceMessageRecorded: (blob: Blob) => void;
+  onVoiceMessageRecorded: (blob: Blob, audioUrl: string) => void;
   onCancel?: () => void;
 }
 
@@ -18,7 +19,11 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioVisualization, setAudioVisualization] = useState<number[]>([]);
+  const [audioVisualization, setAudioVisualization] = useState<number[]>(new Array(12).fill(4));
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [recordButtonPulsing, setRecordButtonPulsing] = useState(false);
+  const [requestingMic, setRequestingMic] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -32,7 +37,21 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (requestingMic) return;
+      
+      setRequestingMic(true);
+      setRecordButtonPulsing(true);
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+      
+      setRecordButtonPulsing(false);
+      setRequestingMic(false);
       streamRef.current = stream;
       
       const audioContext = new AudioContext();
@@ -42,7 +61,9 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
       source.connect(analyser);
       analyserRef.current = analyser;
       
-      const mediaRecorder = new MediaRecorder(stream);
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -53,6 +74,7 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
       };
 
       mediaRecorder.onstop = () => {
+        setIsProcessing(true);
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(audioBlob);
         
@@ -66,7 +88,12 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
         
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
         }
+        
+        setTimeout(() => {
+          setIsProcessing(false);
+        }, 500);
       };
 
       mediaRecorder.start();
@@ -78,8 +105,21 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
       }, 1000);
       
       visualize();
+      
+      setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          stopRecording();
+          toast({
+            description: "Maximum recording time reached (60 seconds)",
+            duration: 3000,
+          });
+        }
+      }, 60000);
+      
     } catch (error) {
       console.error('Error accessing microphone:', error);
+      setRecordButtonPulsing(false);
+      setRequestingMic(false);
       toast({
         title: "Microphone Error",
         description: "Could not access your microphone. Please check permissions.",
@@ -100,15 +140,16 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
       
       analyser.getByteFrequencyData(dataArray);
       
-      const sampleSize = Math.floor(bufferLength / 8);
-      const samples = [];
+      const sampleSize = Math.floor(bufferLength / 12);
+      const samples: number[] = [];
       
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 12; i++) {
         let sum = 0;
         for (let j = 0; j < sampleSize; j++) {
           sum += dataArray[i * sampleSize + j];
         }
-        samples.push(sum / sampleSize);
+        const value = Math.max(3, Math.min(20, (sum / sampleSize / 255) * 20));
+        samples.push(value);
       }
       
       setAudioVisualization(samples);
@@ -154,21 +195,28 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
     
     if (isPlaying) {
       audioRef.current.pause();
+      setIsPlaying(false);
     } else {
-      audioRef.current.play().catch(err => 
-        console.error("Error playing audio preview:", err)
-      );
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(err => {
+        console.error("Error playing audio preview:", err);
+        toast({
+          title: "Playback Error",
+          description: "Could not play the audio preview.",
+          variant: "destructive"
+        });
+      });
+      setIsPlaying(true);
     }
-    
-    setIsPlaying(!isPlaying);
   };
 
   const sendVoiceMessage = () => {
-    if (audioBlob) {
-      onVoiceMessageRecorded(audioBlob);
+    if (audioBlob && audioUrl) {
+      onVoiceMessageRecorded(audioBlob, audioUrl);
       setAudioBlob(null);
       setAudioUrl(null);
       setIsPlaying(false);
+      setAudioProgress(0);
     }
   };
 
@@ -182,10 +230,24 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
     const audio = audioRef.current;
     if (!audio) return;
     
-    const handleEnded = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setAudioProgress(0);
+    };
+    
+    const handleTimeUpdate = () => {
+      if (audio.duration) {
+        setAudioProgress((audio.currentTime / audio.duration) * 100);
+      }
+    };
     
     audio.addEventListener('ended', handleEnded);
-    return () => audio.removeEventListener('ended', handleEnded);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    
+    return () => {
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+    };
   }, [audioUrl]);
 
   useEffect(() => {
@@ -214,31 +276,40 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
             variant="ghost"
             size="icon"
             onClick={startRecording}
-            className="h-10 w-10 rounded-full text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+            className={cn(
+              "h-10 w-10 rounded-full text-rose-500 hover:text-rose-600 hover:bg-rose-50",
+              recordButtonPulsing && "animate-pulse"
+            )}
+            disabled={recordButtonPulsing || requestingMic}
           >
-            <Mic size={20} />
+            {recordButtonPulsing ? <LoaderCircle size={20} className="animate-spin" /> : <Mic size={20} />}
           </Button>
-          <div className="flex-1">
-            <span className="text-sm text-muted-foreground">Click to record audio</span>
+          <div className="flex-1 flex items-center">
+            <span className="text-sm text-muted-foreground ml-2">
+              {recordButtonPulsing ? "Accessing microphone..." : "Click to record audio (max 60s)"}
+            </span>
           </div>
         </div>
       ) : (
         <div className="flex w-full items-center">
           {isRecording ? (
             <div className="flex items-center gap-2 bg-rose-50 px-3 py-2 rounded-lg w-full">
-              <div className="flex items-center gap-1 h-6">
+              <div className="flex items-center gap-[2px] h-6">
                 {audioVisualization.map((value, index) => (
                   <div 
                     key={index}
-                    className="w-1 bg-rose-500 rounded-full"
+                    className="w-1 bg-rose-500 rounded-full animate-pulse"
                     style={{ 
-                      height: `${Math.max(4, (value / 255) * 18)}px`,
-                      animationDelay: `${index * 0.1}s`
+                      height: `${value}px`,
+                      animationDelay: `${index * 0.1}s`,
+                      animationDuration: '0.6s'
                     }}
                   ></div>
                 ))}
               </div>
-              <span className="text-xs font-medium text-rose-600 ml-2">{formatTime(recordingTime)}</span>
+              <span className="text-xs font-medium text-rose-600 ml-2">
+                {formatTime(recordingTime)}
+              </span>
               <div className="flex-1"></div>
               <Button
                 type="button"
@@ -251,41 +322,64 @@ const VoiceMessageRecorder: React.FC<VoiceMessageRecorderProps> = ({
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 bg-violet-50 px-3 py-2 rounded-lg w-full">
-              {audioUrl && (
+            <div className="flex flex-col gap-2 bg-violet-50 px-3 py-2 rounded-lg w-full">
+              {isProcessing ? (
+                <div className="flex items-center justify-center py-2">
+                  <LoaderCircle size={20} className="text-violet-500 animate-spin" />
+                  <span className="ml-2 text-xs text-violet-600">Processing audio...</span>
+                </div>
+              ) : (
                 <>
-                  <audio ref={audioRef} src={audioUrl} className="hidden"></audio>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={playPausePreview}
-                    className="h-8 w-8 rounded-full bg-violet-100 text-violet-500 hover:bg-violet-200"
-                  >
-                    {isPlaying ? <Square size={14} /> : <Volume2 size={14} />}
-                  </Button>
+                  <div className="flex items-center">
+                    {audioUrl && (
+                      <>
+                        <audio ref={audioRef} src={audioUrl} className="hidden"></audio>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={playPausePreview}
+                          className="h-8 w-8 rounded-full bg-violet-100 text-violet-500 hover:bg-violet-200"
+                        >
+                          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                        </Button>
+                      </>
+                    )}
+                    <span className="text-xs text-violet-600 font-medium ml-2">Voice message ready</span>
+                    <div className="flex-1"></div>
+                    <span className="text-xs text-violet-500 opacity-80">{formatTime(recordingTime)}</span>
+                  </div>
+                  
+                  <Progress 
+                    value={audioProgress} 
+                    className="h-1 bg-violet-200" 
+                    indicatorClassName="bg-violet-500" 
+                  />
+                  
+                  <div className="flex justify-end gap-2 mt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={cancelRecording}
+                      className="h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full px-3"
+                    >
+                      <Trash2 size={14} className="mr-1" />
+                      <span className="text-xs">Discard</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={sendVoiceMessage}
+                      className="h-8 bg-violet-500 hover:bg-violet-600 text-white rounded-full px-3"
+                    >
+                      <Send size={14} className="mr-1" />
+                      <span className="text-xs">Send</span>
+                    </Button>
+                  </div>
                 </>
               )}
-              <span className="text-xs text-violet-600 font-medium">Voice message ready</span>
-              <div className="flex-1"></div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={cancelRecording}
-                className="h-8 w-8 rounded-full hover:bg-gray-100 text-gray-500"
-              >
-                <Trash2 size={14} />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={sendVoiceMessage}
-                className="h-8 w-8 rounded-full bg-violet-500 hover:bg-violet-600 text-white"
-              >
-                <Send size={14} />
-              </Button>
             </div>
           )}
         </div>

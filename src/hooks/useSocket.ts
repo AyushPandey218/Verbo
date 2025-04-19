@@ -20,6 +20,13 @@ type WhiteboardData = {
   drawingData: string;
 };
 
+// Define VoiceMessageOptions interface
+interface VoiceMessageOptions {
+  isVoiceMessage?: boolean;
+  audioUrl?: string;
+  audioData?: string;
+}
+
 export const useSocket = (initialUser: User | null) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
@@ -402,8 +409,7 @@ export const useSocket = (initialUser: User | null) => {
     content: string, 
     sender: User, 
     room: string, 
-    isVoiceMessage: boolean = false, 
-    voiceUrl?: string
+    options?: VoiceMessageOptions
   ) => {
     console.log(`Sending message to room ${room}:`, content);
     
@@ -421,8 +427,8 @@ export const useSocket = (initialUser: User | null) => {
       timestamp: Date.now(),
       room,
       reactions: [],
-      isVoiceMessage,
-      voiceUrl
+      isVoiceMessage: options?.isVoiceMessage || false,
+      voiceUrl: options?.audioUrl
     };
     
     console.log("Created message:", newMessage);

@@ -16,6 +16,7 @@ A beautiful, real-time messaging experience built with React, Socket.io, and Tai
 
 ## IMPORTANT: Firebase Setup Required
 
+**This application requires Firebase to work properly.** The demo Firebase project used as a fallback has limited capacity and may not work reliably.
 
 Follow these easy steps to set up your own Firebase project (it's free):
 

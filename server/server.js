@@ -1,3 +1,4 @@
+
 const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
@@ -31,6 +32,7 @@ const users = new Map();
 const rooms = new Map();
 const messages = new Map();
 const userStatus = new Map();
+const waitingForRandomMatch = new Set();
 
 // Constants
 const MESSAGE_HISTORY_LIMIT = 100;
@@ -64,7 +66,62 @@ function handleDisconnect(socketId) {
     userStatus.delete(user.id);
     users.delete(socketId);
     io.emit('userOffline', { userId: user.id, lastSeen: user.lastSeen });
+    
+    // Remove from waiting for random match if applicable
+    waitingForRandomMatch.delete(socketId);
   }
+}
+
+// Find a random match for users
+function findRandomMatch(socket, userData) {
+  if (waitingForRandomMatch.size === 0) {
+    // This user is the first one waiting
+    waitingForRandomMatch.add(socket.id);
+    console.log(`User ${userData.name} is waiting for a random match. Waiting list: ${waitingForRandomMatch.size}`);
+    socket.emit('waiting_for_match');
+    return;
+  }
+  
+  // Find another user to match with (not self)
+  const waitingUsers = Array.from(waitingForRandomMatch);
+  const otherUserSocketId = waitingUsers.find(id => id !== socket.id);
+  
+  if (!otherUserSocketId) {
+    // No other users waiting
+    waitingForRandomMatch.add(socket.id);
+    console.log(`User ${userData.name} is waiting for a random match. No other users available.`);
+    socket.emit('waiting_for_match');
+    return;
+  }
+  
+  // Found a match!
+  const otherUserSocket = io.sockets.sockets.get(otherUserSocketId);
+  const otherUser = users.get(otherUserSocketId);
+  
+  if (!otherUserSocket || !otherUser) {
+    // Something went wrong, other user might have disconnected
+    waitingForRandomMatch.delete(otherUserSocketId);
+    waitingForRandomMatch.add(socket.id);
+    socket.emit('waiting_for_match');
+    return;
+  }
+  
+  // Create a unique room ID for these two users
+  const privateRoomId = `random-${Math.random().toString(36).substring(2, 8)}`;
+  
+  console.log(`Matched ${userData.name} with ${otherUser.name} in room ${privateRoomId}`);
+  
+  // Remove both users from waiting list
+  waitingForRandomMatch.delete(socket.id);
+  waitingForRandomMatch.delete(otherUserSocketId);
+  
+  // Join both users to the new random chat room
+  socket.join(privateRoomId);
+  otherUserSocket.join(privateRoomId);
+  
+  // Tell both users about their match
+  socket.emit('random_match_found', { matchedUser: otherUser, privateRoom: privateRoomId });
+  otherUserSocket.emit('random_match_found', { matchedUser: userData, privateRoom: privateRoomId });
 }
 
 // Handle socket connections
@@ -95,8 +152,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join_room', (data) => {
-    const { room, user } = data;
-    console.log(`User ${user.name} joining room: ${room}`);
+    const { roomName, user } = data;
+    console.log(`User ${user.name} joining room: ${roomName}`);
     
     // Always ensure user is marked as online
     if (user) {
@@ -104,48 +161,66 @@ io.on('connection', (socket) => {
       user.lastActive = Date.now();
     }
     
-    socket.join(room);
+    socket.join(roomName);
     
-    if (!rooms.has(room)) {
-      rooms.set(room, new Set());
+    if (!rooms.has(roomName)) {
+      rooms.set(roomName, new Set());
     }
-    rooms.get(room).add(socket.id);
+    rooms.get(roomName).add(socket.id);
     
     // Update user in the users Map
     if (user) {
       users.set(socket.id, {...user, online: true, lastActive: Date.now()});
     }
     
-    const roomUsers = Array.from(rooms.get(room))
+    const roomUsers = Array.from(rooms.get(roomName))
       .map(id => users.get(id))
       .filter(Boolean);
     
     // Broadcast user list to room
-    io.to(room).emit('room_users', roomUsers);
+    io.to(roomName).emit('room_users', roomUsers);
     
     // Also broadcast updated user list to everyone 
     io.emit('userList', Array.from(users.values()));
   });
 
   socket.on('leave_room', (data) => {
-    const { room, user } = data;
-    console.log(`User ${user?.name} leaving room: ${room}`);
+    const { roomName, user } = data;
+    console.log(`User ${user?.name} leaving room: ${roomName}`);
     
-    socket.leave(room);
+    socket.leave(roomName);
     
-    if (rooms.has(room)) {
-      rooms.get(room).delete(socket.id);
+    if (rooms.has(roomName)) {
+      rooms.get(roomName).delete(socket.id);
       
-      const roomUsers = Array.from(rooms.get(room))
+      const roomUsers = Array.from(rooms.get(roomName))
         .map(id => users.get(id))
         .filter(Boolean);
       
-      io.to(room).emit('room_users', roomUsers);
+      io.to(roomName).emit('room_users', roomUsers);
+    }
+    
+    // If user was in random match, let other user know
+    if (roomName && roomName.startsWith('random-')) {
+      socket.to(roomName).emit('random_match_ended');
     }
   });
 
-  socket.on('chat message', (message) => {
-    console.log(`Message in room ${message.room}: ${message.content}`);
+  socket.on('find_random_match', (data) => {
+    console.log(`${data.user.name} is looking for a random match`);
+    findRandomMatch(socket, data.user);
+  });
+
+  socket.on('message', (message) => {
+    console.log(`Message in room ${message.room}: ${message.isVoiceMessage ? 'Voice Message' : message.content}`);
+    
+    // Create a proper voice message with correct attributes for broadcasting
+    if (message.isVoiceMessage && message.voiceMessage) {
+      // Ensure voice message has proper structure for clients
+      message.voiceUrl = message.voiceMessage.audioUrl || message.voiceUrl;
+      
+      console.log(`Voice message received with URL: ${message.voiceUrl ? 'Valid URL' : 'No URL'}`);
+    }
     
     // Store message with limit
     if (!messages.has(message.room)) {
@@ -159,6 +234,29 @@ io.on('connection', (socket) => {
     
     // Broadcast to room
     io.to(message.room).emit('chat message', message);
+  });
+
+  socket.on('voice_message', (message) => {
+    console.log(`Voice message received in room ${message.room} from ${message.sender.name}`);
+    
+    // Ensure the message has the correct structure
+    if (!message.voiceUrl) {
+      console.error('Voice message missing voiceUrl');
+      return;
+    }
+    
+    // Broadcast the voice message to everyone in the room
+    io.to(message.room).emit('voice_message', message);
+    
+    // Also store in message history
+    if (!messages.has(message.room)) {
+      messages.set(message.room, []);
+    }
+    const roomMessages = messages.get(message.room);
+    roomMessages.push(message);
+    if (roomMessages.length > MESSAGE_HISTORY_LIMIT) {
+      roomMessages.shift();
+    }
   });
 
   socket.on('send_message', (message) => {
@@ -189,25 +287,6 @@ io.on('connection', (socket) => {
     io.to(room).emit('reaction_added', { messageId, reaction, user });
   });
   
-  socket.on('find_random_match', (data) => {
-    console.log(`${data.user.name} is looking for a random match`);
-    socket.emit('waiting_for_match');
-    
-    // Simulate finding a match after 2 seconds
-    setTimeout(() => {
-      const matchedUser = {
-        id: 'simulated-user',
-        name: 'Simulated User',
-        photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=simulated`,
-        online: true
-      };
-      
-      const privateRoom = 'private-' + Math.random().toString(36).substring(7);
-      socket.emit('matched', { matchedUser, privateRoom });
-      socket.join(privateRoom);
-    }, 2000);
-  });
-
   socket.on('disconnect', () => {
     handleDisconnect(socket.id);
   });

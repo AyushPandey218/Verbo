@@ -94,7 +94,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
         {user.lastActive && (
           <div className="flex items-center text-xs text-gray-500 gap-1.5 mt-1">
             <Clock className="h-3 w-3" />
-            <span>Active {formatDistanceToNow(user.lastActive, { addSuffix: true })}</span>
+            <span>Active {formatDistanceToNow(user.lastActive)}</span>
           </div>
         )}
       </div>

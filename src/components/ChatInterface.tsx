@@ -38,7 +38,7 @@ interface ChatInterfaceProps {
   onlineUsers: User[];
   roomName: string;
   onSendMessage: (message: string) => void;
-  onSendVoiceMessage?: (blob: Blob) => void;
+  onSendVoiceMessage?: (blob: Blob, audioUrl: string) => void;
   onLeaveRoom: () => void;
   onSignOut: () => void;
   onAddReaction: (messageId: string, reaction: string) => void;
@@ -53,7 +53,7 @@ interface ChatInterfaceProps {
   friends: User[];
   matchedUser: User | null;
   isRandomChat: boolean;
-  whiteboardData: string | null;
+  whiteboardData: string | undefined;
   connected?: boolean;
   privateRoomCode?: string | null;
   onSaveDrawing?: (imageUrl: string) => void;
@@ -85,7 +85,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   connected = false,
   privateRoomCode = null,
   onSaveDrawing,
-  onBackToGreeting
+  onBackToGreeting,
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);

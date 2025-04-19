@@ -81,7 +81,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
+        <TooltipTrigger>
           <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${getStatusClass()}`}>
             {getIcon()}
             {showText && <span>{getStatusText()}</span>}
