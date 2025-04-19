@@ -175,7 +175,11 @@ class MockSocketService {
       
       if (messageIndex !== -1) {
         const message = messages[messageIndex];
-        message.reactions = [...(message.reactions || []), { user, reaction, timestamp: Date.now() }];
+        message.reactions = [...(message.reactions || []), { 
+          emoji: reaction,
+          userId: user.id,
+          userName: user.name
+        }];
         
         // Broadcast reaction
         this.emitToRoom(room, 'reaction_added', { messageId, reaction, user });

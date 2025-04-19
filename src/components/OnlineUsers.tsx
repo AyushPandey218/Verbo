@@ -1,178 +1,108 @@
-import React, { useState, useEffect } from 'react';
-import { User } from '@/utils/messageUtils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+
+import React, { useMemo, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import ConnectionStatus from './ConnectionStatus';
-import { UserPlus, UserRoundX } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { USER_ONLINE_TIMEOUT } from '@/utils/config';
+import { Separator } from '@/components/ui/separator';
+import { User } from '@/utils/messageUtils';
+import { User as UserIcon, Clock, Search } from 'lucide-react';
+import { formatTimestamp } from '@/utils/messageUtils';
+// Add USER_ONLINE_TIMEOUT directly to the component since it's missing from config
+const USER_ONLINE_TIMEOUT = 60000; // 60 seconds
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface OnlineUsersProps {
   users: User[];
   connected?: boolean;
   onSelectUser?: (user: User) => void;
-  showText?: boolean;
 }
 
 const OnlineUsers: React.FC<OnlineUsersProps> = ({ 
   users, 
-  connected = false,
-  onSelectUser,
-  showText = false
+  connected = true,
+  onSelectUser
 }) => {
-  const [activeTab, setActiveTab] = useState<'online' | 'all'>('online');
-  const [offlineUsers, setOfflineUsers] = useState<User[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   
-  useEffect(() => {
-    localStorage.removeItem('onlineUsersCache');
-  }, []);
-  
-  const onlineUsersList = users.filter(user => {
-    if (user.online !== true) return false;
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm) return users;
+    
+    return users.filter(user => 
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [users, searchTerm]);
+
+  const handleSelectUser = (user: User) => {
+    if (onSelectUser) {
+      onSelectUser(user);
+    }
+  };
+
+  const isUserOnline = (user: User) => {
+    if (user.online) return true;
+    if (!user.lastSeen) return false;
     
     const now = Date.now();
-    if (user.lastActive && (now - user.lastActive > USER_ONLINE_TIMEOUT)) {
-      return false;
-    }
-    
-    return true;
-  });
-  
-  useEffect(() => {
-    const currentTime = Date.now();
-    const onlineUserIds = new Set(onlineUsersList.map(user => user.id));
-    
-    setOfflineUsers(prev => {
-      const filteredOffline = prev.filter(user => {
-        const isNowOnline = onlineUserIds.has(user.id);
-        const hasTimedOut = user.leftAt && (currentTime - user.leftAt > USER_ONLINE_TIMEOUT * 3);
-        return !isNowOnline && !hasTimedOut;
-      });
-      
-      const newOfflineUsers = users.filter(user => {
-        const isExplicitlyOffline = user.online === false;
-        const notInOfflineList = !filteredOffline.some(offlineUser => offlineUser.id === user.id);
-        return isExplicitlyOffline && notInOfflineList;
-      });
-      
-      return [...filteredOffline, ...newOfflineUsers];
-    });
-  }, [users, onlineUsersList]);
-  
-  const allUsers = [...onlineUsersList];
-  offlineUsers.forEach(offlineUser => {
-    if (!onlineUsersList.some(user => user.id === offlineUser.id)) {
-      allUsers.push(offlineUser);
-    }
-  });
-  
+    return (now - user.lastSeen) < USER_ONLINE_TIMEOUT;
+  };
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="bg-gradient-to-r from-indigo-100 to-purple-100 p-3 flex items-center justify-between">
-        <h3 className="text-indigo-700 font-medium">Users</h3>
-        <Badge variant="outline" className={`${connected ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
-          {connected ? 'Connected' : 'Disconnected'}
-        </Badge>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="p-3 border-b">
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search users..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9"
+          />
+        </div>
       </div>
       
-      <Tabs defaultValue="online" className="w-full" onValueChange={(value) => setActiveTab(value as 'online' | 'all')}>
-        <TabsList className="grid w-full grid-cols-2 p-1 bg-indigo-50">
-          <TabsTrigger value="online" className="data-[state=active]:bg-white">
-            Online ({onlineUsersList.length})
-          </TabsTrigger>
-          <TabsTrigger value="all" className="data-[state=active]:bg-white">
-            All ({allUsers.length})
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="online" className="mt-0">
-          <div className="flex-1 overflow-y-auto p-2 max-h-[300px]">
-            {onlineUsersList.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm">
-                <UserPlus className="h-8 w-8 mx-auto text-indigo-200 mb-2" />
-                <p>No users online</p>
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {onlineUsersList.map((user) => (
-                  <li 
-                    key={user.id}
-                    className="p-2 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
-                    onClick={() => onSelectUser && onSelectUser(user)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <Avatar className="h-10 w-10 border-2 border-white">
-                          <AvatarImage src={user.photoURL} alt={user.name} />
-                          <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-purple-500 text-white">
-                            {user.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{user.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {user.email || 'Guest User'}
-                        </p>
-                      </div>
+      <div className="flex-1 overflow-y-auto p-2">
+        {connected ? (
+          filteredUsers.length > 0 ? (
+            <div className="space-y-2">
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => handleSelectUser(user)}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8 border border-gray-200">
+                      <AvatarImage src={user.photoURL} alt={user.name} />
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {user.name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{user.name}</span>
+                      <span className="text-xs text-muted-foreground">{user.email || "Guest user"}</span>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                  </div>
+                  <div className="flex items-center">
+                    <div className={`h-2 w-2 rounded-full mr-2 ${isUserOnline(user) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-xs text-muted-foreground">{isUserOnline(user) ? 'Online' : 'Away'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center p-4 text-muted-foreground">
+              <UserIcon className="mx-auto h-10 w-10 mb-2 opacity-30" />
+              <p>No users found</p>
+            </div>
+          )
+        ) : (
+          <div className="text-center p-4 text-muted-foreground">
+            <Clock className="mx-auto h-10 w-10 mb-2 opacity-30" />
+            <p>Connecting...</p>
+            <p className="text-xs mt-1">Showing offline data</p>
           </div>
-        </TabsContent>
-        
-        <TabsContent value="all" className="mt-0">
-          <div className="flex-1 overflow-y-auto p-2 max-h-[300px]">
-            {allUsers.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm">
-                <UserRoundX className="h-8 w-8 mx-auto text-indigo-200 mb-2" />
-                <p>No users found</p>
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {allUsers.map((user) => (
-                  <li 
-                    key={user.id}
-                    className="p-2 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
-                    onClick={() => onSelectUser && onSelectUser(user)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <Avatar className="h-10 w-10 border-2 border-white">
-                          <AvatarImage src={user.photoURL} alt={user.name} />
-                          <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-purple-500 text-white">
-                            {user.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        {user.online === true ? (
-                          <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span>
-                        ) : (
-                          <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-gray-300 border-2 border-white rounded-full"></span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{user.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {user.email || 'Guest User'}
-                        </p>
-                        {user.online === false && (
-                          <p className="text-xs text-gray-400">Offline</p>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
-      
-      <div className="border-t p-3 bg-gray-50">
-        <ConnectionStatus connected={connected} showText={true} />
+        )}
       </div>
     </div>
   );

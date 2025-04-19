@@ -26,64 +26,40 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
   onAddReaction,
   user
 }) => {
-  console.log("Rendering MessageReactions with reactions:", reactions);
-  
-  // Get user's current reaction if any
-  const userCurrentReaction = reactions.find(reaction => 
-    reaction.user?.id === user.id
-  )?.reaction;
-  
-  // Group reactions by type and count them
+  // Group reactions by emoji and count users
   const getReactionCounts = () => {
-    // Create a map to track users who reacted with each emoji
-    const reactionMap: Record<string, Set<string>> = {};
+    const reactionMap: Record<string, string[]> = {};
     
     reactions.forEach(reaction => {
-      // Check if the reaction and user are valid
-      if (reaction.reaction && reaction.user?.id) {
-        // Initialize the set if it doesn't exist
-        if (!reactionMap[reaction.reaction]) {
-          reactionMap[reaction.reaction] = new Set();
-        }
-        
-        // Add user ID to the set for this reaction
-        reactionMap[reaction.reaction].add(reaction.user.id);
+      const emoji = reaction.emoji;
+      
+      if (!reactionMap[emoji]) {
+        reactionMap[emoji] = [];
       }
+      
+      reactionMap[emoji].push(reaction.userId);
     });
     
-    // Convert to counts object
-    const counts: Record<string, number> = {};
-    for (const [reaction, users] of Object.entries(reactionMap)) {
-      counts[reaction] = users.size;
-    }
-    
-    return counts;
+    return reactionMap;
   };
   
   const reactionCounts = getReactionCounts();
   
-  const handleAddReaction = (reaction: string) => {
-    console.log("Adding reaction:", reaction, "to message:", messageId);
-    
-    if (userCurrentReaction === reaction) {
-      // If user already reacted with this emoji, treat it as a toggle (remove)
-      onAddReaction(messageId, reaction); // This will be handled by the backend to toggle
-    } else {
-      // Add the new reaction
-      onAddReaction(messageId, reaction);
-    }
+  const handleAddReaction = (emoji: string) => {
+    console.log("Adding reaction:", emoji, "to message:", messageId);
+    onAddReaction(messageId, emoji);
   };
   
   return (
     <div className="flex flex-wrap gap-1 mt-1">
       {/* Display existing reactions with counts */}
-      {Object.entries(reactionCounts).map(([reaction, count]) => {
+      {Object.entries(reactionCounts).map(([emoji, userIds]) => {
         // Check if the current user has reacted with this emoji
-        const isUserReaction = userCurrentReaction === reaction;
+        const isUserReaction = userIds.includes(user.id);
         
         return (
           <Button
-            key={reaction}
+            key={emoji}
             variant="ghost"
             size="sm"
             className={`h-6 px-2 rounded-full text-xs ${
@@ -91,9 +67,9 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
                 ? "bg-violet-100 hover:bg-violet-200" 
                 : "bg-background/80 hover:bg-background"
             }`}
-            onClick={() => handleAddReaction(reaction)}
+            onClick={() => handleAddReaction(emoji)}
           >
-            {reaction} <span className="ml-1">{count}</span>
+            {emoji} <span className="ml-1">{userIds.length}</span>
           </Button>
         );
       })}

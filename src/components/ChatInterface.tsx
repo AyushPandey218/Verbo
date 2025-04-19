@@ -215,7 +215,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <div className="font-semibold text-lg leading-tight flex items-center gap-2">
                   {matchedUser ? matchedUser.name : roomName}
                   {connected && (
-                    <Badge variant="outline" className="ml-2 bg-green-50 text-green-600 border-green-200 font-normal text-xs">
+                    <Badge className="ml-2 bg-green-50 text-green-600 border-green-200 font-normal text-xs">
                       Online
                     </Badge>
                   )}

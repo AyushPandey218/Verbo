@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import SocketService from '@/utils/socketService';
 import { User, Message, generateId } from '@/utils/messageUtils';
@@ -393,9 +392,9 @@ export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSo
           }
           
           updatedMessage.reactions.push({
-            user,
-            reaction,
-            timestamp: Date.now()
+            emoji: reaction,
+            userId: user.id,
+            userName: user.name
           });
           
           return updatedMessage;
