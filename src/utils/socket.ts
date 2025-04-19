@@ -1,4 +1,3 @@
-
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 
@@ -7,7 +6,7 @@ const getSocketUrl = (): string => {
   // For production deployment (like Vercel)
   if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     // Use the same domain for production with the API path
-    return `${window.location.origin}`;
+    return window.location.origin;
   }
   
   // For local development
@@ -27,7 +26,7 @@ export const getSocket = (): Socket => {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       timeout: 20000,
-      path: '/socket.io', // This will route to /api/socket on Vercel
+      path: '/api/socket',  // Updated path for Vercel
       forceNew: true,
       reconnection: true,
       autoConnect: true,

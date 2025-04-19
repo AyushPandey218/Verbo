@@ -24,7 +24,7 @@ const io = new Server(httpServer, {
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
-  path: '/socket.io' // Use a consistent path
+  path: '/socket.io' // Keep this as /socket.io for direct server access
 });
 
 // In-memory storage
@@ -45,6 +45,17 @@ app.use(express.static(path.join(__dirname, '../dist')));
 // Health check endpoint
 app.get('/', (req, res) => {
   res.send('Socket.io server is running');
+});
+
+// Debug endpoint
+app.get('/debug', (req, res) => {
+  res.json({
+    status: 'Socket server active',
+    users: Array.from(users.values()).map(u => ({ id: u.id, name: u.name, online: u.online })),
+    rooms: Array.from(rooms.keys()),
+    waitingUsers: waitingForRandomMatch.size,
+    time: new Date().toISOString(),
+  });
 });
 
 // Clean up inactive users periodically
@@ -182,6 +193,11 @@ io.on('connection', (socket) => {
     
     // Also broadcast updated user list to everyone 
     io.emit('userList', Array.from(users.values()));
+    
+    // Send existing messages for this room to the newly joined user
+    if (messages.has(roomName)) {
+      socket.emit('chat message', ...messages.get(roomName));
+    }
   });
 
   socket.on('leave_room', (data) => {
@@ -236,6 +252,12 @@ io.on('connection', (socket) => {
     io.to(message.room).emit('chat message', message);
   });
 
+  // New event handler to ensure messages are received
+  socket.on('send_message', (message) => {
+    console.log(`Send message event in room ${message.room}: ${message.content}`);
+    io.to(message.room).emit('message_received', message);
+  });
+
   socket.on('voice_message', (message) => {
     console.log(`Voice message received in room ${message.room} from ${message.sender.name}`);
     
@@ -257,10 +279,6 @@ io.on('connection', (socket) => {
     if (roomMessages.length > MESSAGE_HISTORY_LIMIT) {
       roomMessages.shift();
     }
-  });
-
-  socket.on('send_message', (message) => {
-    io.to(message.room).emit('message_received', message);
   });
 
   socket.on('typing', (data) => {
@@ -287,6 +305,15 @@ io.on('connection', (socket) => {
     io.to(room).emit('reaction_added', { messageId, reaction, user });
   });
   
+  socket.on('whiteboard_data', (data) => {
+    const { data: drawingData, room, sender } = data;
+    socket.to(room).emit('whiteboard_data', { data: drawingData, sender });
+  });
+
+  socket.on('poll_vote', (voteData) => {
+    io.to(voteData.room).emit('poll_vote', voteData);
+  });
+  
   socket.on('disconnect', () => {
     handleDisconnect(socket.id);
   });
@@ -298,6 +325,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 httpServer.listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);
+  console.log(`Socket.IO path: ${io.path()}`);
 });
 
 // For Vercel support

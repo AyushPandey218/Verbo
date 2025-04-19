@@ -43,37 +43,45 @@ This guide will help you deploy the Verbo chat application on Vercel, ensuring t
 
 If you experience WebSocket connection issues with the error "Using offline mode" or "WebSocket error" after deploying to Vercel, here's how to fix it:
 
-1. **Check your `api/socket.js` file**
-   This serverless function handles Socket.IO connections on Vercel. Make sure it exists and is properly configured.
+### 1. Verify Path Configuration
 
-2. **Verify your `vercel.json` configuration**
-   Ensure your `vercel.json` includes the following:
-   ```json
-   {
-     "buildCommand": "npm run build",
-     "outputDirectory": "dist",
-     "framework": "vite",
-     "functions": {
-       "api/**/*.js": {
-         "memory": 256,
-         "maxDuration": 10
-       }
-     },
-     "rewrites": [
-       { "source": "/socket.io/(.*)", "destination": "/api/socket" },
-       { "source": "/(.*)", "destination": "/" }
-     ]
-   }
-   ```
+Make sure the client and server paths match:
 
-3. **Check server dependencies**
-   Make sure your project includes the required server dependencies:
-   ```bash
-   npm install express socket.io cors
-   ```
+- In `src/utils/socket.ts`: Set `path: '/api/socket'`
+- In `vercel.json`: Make sure routing is set up correctly:
+  ```json
+  "rewrites": [
+    { "source": "/api/socket", "destination": "/api/socket" },
+    { "source": "/socket.io/(.*)", "destination": "/api/socket" },
+    { "source": "/(.*)", "destination": "/" }
+  ]
+  ```
 
-4. **Redeploy your project**
-   After making these changes, redeploy your project to Vercel.
+### 2. Test API Endpoints
+
+Visit these URLs to verify your serverless functions are working:
+- `https://your-project-url.vercel.app/api/debug` - Should return a JSON response
+- `https://your-project-url.vercel.app/api/socket-debug` - Should confirm Socket.IO is reachable
+
+### 3. Check Vercel Function Logs
+
+1. Go to your Vercel project dashboard
+2. Click on "Functions" in the left sidebar
+3. Look for any errors in the logs for the `/api/socket` function
+
+### 4. Ensure Required Dependencies
+
+Make sure your project includes these server dependencies:
+```bash
+npm install express socket.io cors
+```
+
+### 5. Redeploy with Cache Reset
+
+If you've made changes but still experience issues:
+1. Go to your Vercel project settings
+2. Find "Build & Development Settings"
+3. Click "Clear Cache and Redeploy"
 
 ## Using Firebase as a Backup
 
@@ -90,6 +98,9 @@ To configure your Firebase project:
 If you continue to experience issues with the Vercel deployment:
 - Review the Vercel deployment logs for errors
 - Check console logs in your browser for connection issues
-- Make sure all necessary dependencies are installed
+- Try accessing the debug endpoints (`/api/debug` and `/api/socket-debug`)
+- Ensure all necessary dependencies are installed
 
-For more information, refer to the [Socket.IO Serverless Documentation](https://socket.io/docs/v4/server-installation/#running-with-vercel-the-example-small-improvements)
+For more information, refer to:
+- [Socket.IO Serverless Documentation](https://socket.io/docs/v4/server-installation/#running-with-vercel)
+- [Vercel Serverless Functions Documentation](https://vercel.com/docs/concepts/functions/serverless-functions)

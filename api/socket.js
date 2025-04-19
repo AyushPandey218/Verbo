@@ -35,7 +35,7 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  path: '/socket.io',
+  path: '/socket.io',  // Keep this as /socket.io for server side
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
@@ -292,23 +292,45 @@ app.get('/', (req, res) => {
   res.send('Socket.io serverless function is running');
 });
 
+// Add a specific debug endpoint
+app.get('/debug', (req, res) => {
+  res.json({
+    status: 'Socket server active',
+    users: Array.from(users.values()).map(u => ({ id: u.id, name: u.name, online: u.online })),
+    rooms: Array.from(rooms.keys()),
+    waitingUsers: waitingForRandomMatch.size,
+    time: new Date().toISOString(),
+  });
+});
+
 // Vercel serverless function handler
 module.exports = (req, res) => {
   // Check if this is a socket.io request or a normal HTTP request
-  if (req.url?.startsWith('/socket.io/')) {
-    // Handle as Socket.IO request
-    let bodyUsed = false;
-    try {
-      bodyUsed = req.body !== undefined;
-    } catch (e) {
-      // Body may not be accessible yet
-    }
-    if (!bodyUsed) {
-      httpServer.emit('request', req, res);
-    }
+  const url = req.url || '';
+  
+  // Log incoming requests to help debug
+  console.log(`[API] Request: ${url}`);
+  
+  if (url.startsWith('/socket.io/')) {
+    // Handle as Socket.IO request through httpServer
+    console.log('[API] Handling Socket.IO request');
+    httpServer.emit('request', req, res);
   } else {
-    // Handle as normal HTTP request
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Socket.IO server is running. Connect to /socket.io/');
+    // For non-socket requests or debug endpoints
+    if (url.startsWith('/debug')) {
+      const responseData = {
+        status: 'Socket.IO debug endpoint is reachable',
+        headers: req.headers,
+        time: new Date().toISOString(),
+        message: 'If you can see this message, API routes are working correctly on Vercel'
+      };
+      console.log('[API] Debug request received');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(responseData, null, 2));
+    } else {
+      // Standard response
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('Socket.IO server is running. Connect to /api/socket');
+    }
   }
 };
