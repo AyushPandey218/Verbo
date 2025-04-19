@@ -6,7 +6,7 @@ const getSocketUrl = (): string => {
   // For production deployment (like Vercel)
   if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     // Use the same domain for production with the API path
-    return window.location.origin;
+    return `${window.location.protocol}//${window.location.host}`;
   }
   
   // For local development
@@ -25,8 +25,8 @@ export const getSocket = (): Socket => {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-      timeout: 20000,
-      path: '/api/socket',  // Updated path for Vercel
+      timeout: 60000, // Increased timeout from 20s to 60s
+      path: '/api/socket',
       forceNew: true,
       reconnection: true,
       autoConnect: true,

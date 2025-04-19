@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useChat } from '@/context/ChatContext';
@@ -70,6 +69,13 @@ const Index = () => {
   const handleJoinGroupClick = (groupId: string) => {
     joinRoom(groupId);
   };
+
+  // Set currentUser from authUser when available
+  useEffect(() => {
+    if (authUser && !currentUser) {
+      setCurrentUser(authUser);
+    }
+  }, [authUser, currentUser, setCurrentUser]);
   
   // Render login screen if no user is set
   if (!currentUser) {
@@ -90,6 +96,25 @@ const Index = () => {
           </div>
           
           <div className="space-y-4">
+            <button 
+              onClick={() => signIn()}
+              className="w-full py-3 px-4 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 font-medium rounded-lg shadow transition-colors flex items-center justify-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+              Sign in with Google
+            </button>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 px-2 text-muted-foreground">
+                  Or
+                </span>
+              </div>
+            </div>
+            
             <button
               onClick={() => setShowGuestSignIn(true)}
               className="w-full py-3 px-4 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-medium rounded-lg shadow transition-colors"

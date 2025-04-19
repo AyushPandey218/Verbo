@@ -1,4 +1,3 @@
-
 // Socket.io serverless function for Vercel
 const { Server } = require('socket.io');
 const { createServer } = require('http');
@@ -35,9 +34,10 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  path: '/socket.io',  // Keep this as /socket.io for server side
+  path: '/api/socket',  // Keep this as /api/socket for server side
+  allowEIO3: true,      // Added compatibility for older socket.io clients
   transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
+  pingTimeout: 60000,   // Increased timeout
   pingInterval: 25000,
   addTrailingSlash: false
 });
@@ -305,6 +305,17 @@ app.get('/debug', (req, res) => {
 
 // Vercel serverless function handler
 module.exports = (req, res) => {
+  // For CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
+      'Access-Control-Allow-Headers': 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version',
+      'Access-Control-Allow-Credentials': 'true'
+    });
+    return res.end();
+  }
+
   // Check if this is a socket.io request or a normal HTTP request
   const url = req.url || '';
   
@@ -325,11 +336,21 @@ module.exports = (req, res) => {
         message: 'If you can see this message, API routes are working correctly on Vercel'
       };
       console.log('[API] Debug request received');
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.writeHead(200, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,OPTIONS,POST',
+        'Access-Control-Allow-Headers': '*'
+      });
       res.end(JSON.stringify(responseData, null, 2));
     } else {
       // Standard response
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.writeHead(200, { 
+        'Content-Type': 'text/plain',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,OPTIONS,POST',
+        'Access-Control-Allow-Headers': '*'
+      });
       res.end('Socket.IO server is running. Connect to /api/socket');
     }
   }
