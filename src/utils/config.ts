@@ -1,13 +1,13 @@
 
 // Default Firebase config
 export const defaultFirebaseConfig = {
-  apiKey: "AIzaSyCF8TIh5TkuRD9S9Q2RCRH2Rxg_iutpNMU",
-  authDomain: "verbo-chat-demo.firebaseapp.com",
-  projectId: "verbo-chat-demo",
-  storageBucket: "verbo-chat-demo.appspot.com",
-  messagingSenderId: "829486829496",
-  appId: "1:829486829496:web:d742b7d58f8c4df747dc9b",
-  databaseURL: "https://verbo-chat-demo-default-rtdb.firebaseio.com"
+  apiKey: "AIzaSyBhtV6eoUUAjJFZ39w6thZc2CU2T6R8HSM",
+  authDomain: "verbo-1831c.firebaseapp.com",
+  databaseURL: "https://verbo-1831c-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "verbo-1831c",
+  storageBucket: "verbo-1831c.firebasestorage.app",
+  messagingSenderId: "435891056294",
+  appId: "1:435891056294:web:a51c610f611c1ab9c70e67",
 };
 
 // Check if using default config
