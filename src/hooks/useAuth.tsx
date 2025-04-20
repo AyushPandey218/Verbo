@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { LOGOUT_STORAGE_CLEANUP_ITEMS, THOROUGH_LOGOUT_CLEANUP } from '@/utils/config';
 
 interface AuthContextType {
+  setUser(newUser: User): unknown;
   user: User | null;
   loading: boolean;
   error: string | null;
@@ -171,6 +172,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           photoURL: picture,
           online: true, // Explicitly set online to true
           lastActive: Date.now() // Add timestamp for when user was last active
+          ,
+          inRandomChat: undefined,
+          isGuest: false
         };
         
         // Make sure to clear any stored room data to force returning to greeting
@@ -235,7 +239,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       email: 'test@example.com',
       photoURL: 'https://ui-avatars.com/api/?name=Test+User&background=random',
       online: true,
-      lastActive: Date.now()
+      lastActive: Date.now(),
+      inRandomChat: undefined,
+      isGuest: false
     };
     
     // Make sure to clear any stored room data to force returning to greeting
@@ -274,7 +280,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, setUser, loading, error, signIn, signOut }}>
       {children}
       {/* Hidden but styled fallback Google sign-in button */}
       <div 
@@ -288,7 +294,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     </AuthContext.Provider>
   );
 };
-
 // Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
