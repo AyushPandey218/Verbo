@@ -84,7 +84,7 @@ VITE_FIREBASE_DATABASE_URL=https://your-project-id-default-rtdb.firebaseio.com
 // Default Firebase configuration - ONLY used if environment variables are not set
 // IMPORTANT: Replace this with your own Firebase config for better reliability
 export const defaultFirebaseConfig = {
-apiKey: "AIzaSyBhtV6eoUUAjJFZ39w6thZc2CU2T6R8HSM",
+  apiKey: "AIzaSyBhtV6eoUUAjJFZ39w6thZc2CU2T6R8HSM",
   authDomain: "verbo-1831c.firebaseapp.com",
   databaseURL: "https://verbo-1831c-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "verbo-1831c",
@@ -101,6 +101,51 @@ export const USING_DEFAULT_FIREBASE_CONFIG =
 // Connection status debug information - set to false for production
 export const DEBUG_CONNECTION_STATUS = false;
 
+// Firebase Rules explanation to help users troubleshoot permission issues
+export const FIREBASE_RULES_HELP = `
+// For testing, you can use these permissive rules (NOT FOR PRODUCTION):
+{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}
+
+// For a more secure setup, you can use:
+{
+  "rules": {
+    "users": {
+      "$userId": {
+        ".read": "auth !== null || true", // Anyone can read for a chat app
+        ".write": "auth !== null || true" // Anyone can write for a chat app
+      }
+    },
+    "rooms": {
+      "$roomId": {
+        ".read": "auth !== null || true",
+        ".write": "auth !== null || true",
+        "messages": {
+          ".read": "auth !== null || true",
+          ".write": "auth !== null || true"
+        },
+        "users": {
+          ".read": "auth !== null || true",
+          ".write": "auth !== null || true"
+        }
+      }
+    },
+    "randomMatches": {
+      ".read": "auth !== null || true",
+      ".write": "auth !== null || true"
+    },
+    "randomMatchQueue": {
+      ".read": "auth !== null || true",
+      ".write": "auth !== null || true"
+    }
+  }
+}
+`;
+
 // Pre-deployment checklist flags
 export const PRE_DEPLOYMENT_CHECKLIST = {
   usingCustomFirebase: !USING_DEFAULT_FIREBASE_CONFIG,
@@ -112,3 +157,7 @@ export const REMOVE_USER_FROM_FIREBASE_ON_LOGOUT = true;
 
 // Force clearing all messages on logout
 export const CLEAR_MESSAGES_ON_LOGOUT = true;
+
+// Tenor API configuration
+export const TENOR_API_KEY = "AIzaSyCOfzm3WUavBRWwFzOeQjXEorrneXpWz1w";
+export const TENOR_API_URL = "https://tenor.googleapis.com/v2";

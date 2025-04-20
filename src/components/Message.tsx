@@ -104,6 +104,9 @@ const Message: React.FC<MessageProps> = ({
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
+  const isGif = message.content.startsWith('[GIF](') && message.content.endsWith(')');
+  const gifUrl = isGif ? message.content.slice(6, -1) : null;
+
   return (
     <div 
       ref={messageRef}
@@ -131,7 +134,14 @@ const Message: React.FC<MessageProps> = ({
               : 'bg-white border border-gray-100'
           )}
         >
-          {message.isVoiceMessage ? (
+          {isGif ? (
+            <img 
+              src={gifUrl} 
+              alt="GIF" 
+              className="max-w-[240px] rounded-lg"
+              loading="lazy"
+            />
+          ) : message.isVoiceMessage ? (
             <div className="flex flex-col min-w-[200px] w-64">
               <div className="flex items-center gap-2 mb-2">
                 <Volume2 size={16} className={isOwn ? "text-white/80" : "text-rose-500"} />

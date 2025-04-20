@@ -1,24 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Sticker } from 'lucide-react';
-import { Input } from './ui/input';
+import { Input } from '@/components/ui/input';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { TENOR_API_KEY, TENOR_API_URL } from '@/utils/config';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Loader2 } from 'lucide-react';
 
 interface TenorPickerProps {
-  onSelect: (url: string) => void;
+  onSelect: (gifUrl: string) => void;
 }
 
 const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
-  const [search, setSearch] = React.useState('');
-  const [gifs, setGifs] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [gifs, setGifs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const searchGifs = async (query: string) => {
+  const searchGifs = useCallback(async (term: string) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://tenor.googleapis.com/v2/search?q=${query}&key=AIzaSyDPPd7LoqxU-TIlBwd8pEIkoR9x1QC5AZk&client_key=chat_app&limit=12`
-      );
+      const searchEndpoint = `${TENOR_API_URL}/search?q=${encodeURIComponent(term)}&key=${TENOR_API_KEY}&client_key=verbo_chat&limit=20`;
+      const response = await fetch(searchEndpoint);
       const data = await response.json();
       setGifs(data.results || []);
     } catch (error) {
@@ -26,44 +32,82 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const getFeaturedGifs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const featuredEndpoint = `${TENOR_API_URL}/featured?key=${TENOR_API_KEY}&client_key=verbo_chat&limit=20`;
+      const response = await fetch(featuredEndpoint);
+      const data = await response.json();
+      setGifs(data.results || []);
+    } catch (error) {
+      console.error('Error fetching featured GIFs:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      getFeaturedGifs();
+    }
+  }, [isOpen, getFeaturedGifs]);
+
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      if (searchTerm) {
+        searchGifs(searchTerm);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchTerm, searchGifs]);
+
+  const handleSelectGif = (gif: any) => {
+    const gifUrl = gif.media_formats.gif.url;
+    onSelect(gifUrl);
+    setIsOpen(false);
   };
 
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-indigo-600"
+          className="rounded-full h-10 w-10 bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
         >
-          <Sticker size={18} />
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
+            <path d="M7 3v6"/>
+            <path d="M17 3v6"/>
+            <path d="M21 9V7a2 2 0 0 0-2-2h-4"/>
+            <path d="M3 9V7a2 2 0 0 1 2-2h4"/>
+          </svg>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-2">
-        <div className="space-y-2">
+      <PopoverContent className="w-80 p-0" align="end">
+        <div className="p-2 border-b">
           <Input
-            type="text"
             placeholder="Search GIFs..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              if (e.target.value) {
-                searchGifs(e.target.value);
-              }
-            }}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
           />
-          <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
-            {loading ? (
-              <div className="col-span-3 text-center py-4 text-sm text-muted-foreground">
-                Loading...
-              </div>
-            ) : gifs.length > 0 ? (
-              gifs.map((gif: any) => (
+        </div>
+        <ScrollArea className="h-[300px]">
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 p-2">
+              {gifs.map((gif) => (
                 <button
                   key={gif.id}
-                  className="aspect-square overflow-hidden rounded-lg hover:ring-2 ring-indigo-500 transition-all"
-                  onClick={() => onSelect(gif.media_formats.gif.url)}
+                  onClick={() => handleSelectGif(gif)}
+                  className="aspect-video rounded overflow-hidden hover:opacity-90 transition-opacity"
                 >
                   <img
                     src={gif.media_formats.tinygif.url}
@@ -71,17 +115,12 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
                     className="w-full h-full object-cover"
                   />
                 </button>
-              ))
-            ) : (
-              <div className="col-span-3 text-center py-4 text-sm text-muted-foreground">
-                {search ? 'No results found' : 'Search for GIFs'}
-              </div>
-            )}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
       </PopoverContent>
     </Popover>
   );
 };
-
 export default TenorPicker;
