@@ -192,34 +192,38 @@ const MessageInput: React.FC<MessageInputProps> = ({
               disabled={disabled || isSubmitting}
             />
             
-            <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-indigo-600"
-                >
-                  <Smile size={18} />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-2 shadow-lg">
-                <div className="text-xs font-medium text-muted-foreground mb-2">Quick Emoji</div>
-                <div className="grid grid-cols-5 gap-1">
-                  {commonEmojis.map((emoji) => (
-                    <Button
-                      key={emoji}
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={() => insertEmoji(emoji)}
-                    >
-                      {emoji}
-                    </Button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground hover:text-indigo-600"
+                  >
+                    <Smile size={18} />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2 shadow-lg">
+                  <div className="text-xs font-medium text-muted-foreground mb-2">Quick Emoji</div>
+                  <div className="grid grid-cols-5 gap-1">
+                    {commonEmojis.map((emoji) => (
+                      <Button
+                        key={emoji}
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={() => insertEmoji(emoji)}
+                      >
+                        {emoji}
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <TenorPicker onSelect={handleSendGif} />
+            </div>
           </div>
           
           <div className="flex gap-1.5">
