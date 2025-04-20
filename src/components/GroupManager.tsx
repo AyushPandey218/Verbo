@@ -106,7 +106,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           <span>Groups</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-[280px] sm:w-[350px]">
+      <SheetContent side="right" className="glass w-[280px] sm:w-[350px]">
         <SheetHeader>
           <SheetTitle>Your Groups</SheetTitle>
         </SheetHeader>

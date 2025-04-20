@@ -6,13 +6,19 @@ export const MESSAGE_CATEGORIES = [
   'Professional', 
   'Technical', 
   'Emotional',
-  'Greeting'
+  'Greeting',
+  'Profanity'
 ] as const;
 
 export type MessageCategory = typeof MESSAGE_CATEGORIES[number];
 
 export function categorizeMessage(message: string): MessageCategory {
   const lowercaseMessage = message.toLowerCase();
+  
+  // Check for profanity/swear words
+  if (/\b(fuck|shit|damn|ass|bitch|crap|hell|wtf|fk|fck|fuk|sht|bs)\b/.test(lowercaseMessage)) {
+    return 'Profanity';
+  }
   
   // Check for greetings first
   if (/\b(hello|hi|hey|greetings|howdy|hola|good morning|good afternoon|good evening)\b/.test(lowercaseMessage) && message.length < 30) {

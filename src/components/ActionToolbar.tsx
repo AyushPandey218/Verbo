@@ -46,7 +46,7 @@ const ActionToolbar: React.FC<ActionToolbarProps> = ({
     <div className="flex items-center gap-2">
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger>
+          <TooltipTrigger asChild>
             <Button
               type="button" 
               variant="ghost"
@@ -67,8 +67,8 @@ const ActionToolbar: React.FC<ActionToolbarProps> = ({
       <Popover open={isPollOpen} onOpenChange={setIsPollOpen}>
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger>
-              <PopoverTrigger>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"

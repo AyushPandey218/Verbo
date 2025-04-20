@@ -1,16 +1,13 @@
 export interface User {
   id: string;
   name: string;
-  email?: string;
-  photoURL?: string;
-  online?: boolean;
+  email: string;
+  photoURL: string;
+  online: boolean;
   socketId?: string;
-  lastSeen?: number;
+  lastSeen?: string;
   leftAt?: number;
   joinedAt?: number;
-  isGuest?: boolean;
-  lastActive?: number;
-  gender?: 'male' | 'female' | 'other';
 }
 
 export interface Message {
@@ -25,12 +22,9 @@ export interface Message {
 }
 
 export interface Reaction {
-  emoji: string;
-  userId: string;
-  userName: string;
-  user?: User;
-  reaction?: string;
-  timestamp?: number;
+  user: User;
+  reaction: string;
+  timestamp: number;
 }
 
 export interface Room {

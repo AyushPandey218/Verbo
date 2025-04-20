@@ -68,9 +68,8 @@ class MockSocketService {
   private static instance: MockSocketService;
   private sockets: Map<string, MockSocket> = new Map();
   private users: Map<string, User> = new Map();
-  private rooms: Map<string, Set<string>> = new Map();
+  private rooms: Map<string, Set<string>> = new Map(); // Fixed: Changed from Set to Map
   private roomMessages: Map<string, Message[]> = new Map();
-  private waitingForRandomMatch: Set<string> = new Set();
 
   private constructor() {
     // Initialize with some demo data
@@ -165,83 +164,6 @@ class MockSocketService {
       this.emitToRoom(room, 'message_received', message);
     });
     
-    socket.on('add_reaction', (data: { messageId: string, reaction: string, user: User, room: string }) => {
-      const { messageId, reaction, user, room } = data;
-      console.log("Mock: Reaction added", data);
-      
-      // Update message
-      const messages = this.roomMessages.get(room) || [];
-      const messageIndex = messages.findIndex(m => m.id === messageId);
-      
-      if (messageIndex !== -1) {
-        const message = messages[messageIndex];
-        message.reactions = [...(message.reactions || []), { 
-          emoji: reaction,
-          userId: user.id,
-          userName: user.name
-        }];
-        
-        // Broadcast reaction
-        this.emitToRoom(room, 'reaction_added', { messageId, reaction, user });
-      }
-    });
-    
-    socket.on('find_random_match', ({ user }: { user: User }) => {
-      console.log("Mock: User looking for random match", user);
-      // Handle random matching
-      socket.emit('waiting_for_match');
-      this.waitingForRandomMatch.add(socket.id);
-      
-      // Generate a simulated match after a brief delay
-      setTimeout(() => {
-        // Create a simulated user to match with
-        const simulatedUser: User = {
-          id: 'simulated-' + Date.now(),
-          name: 'Alex',
-          email: 'alex@example.com',
-          photoURL: 'https://i.pravatar.cc/150?u=' + Date.now(),
-          online: true
-        };
-        
-        // Remove from waiting list
-        this.waitingForRandomMatch.delete(socket.id);
-        
-        // Create a private room ID
-        const privateRoom = `random_${socket.id}_${simulatedUser.id}`;
-        
-        // Send the match notification
-        socket.emit('matched', { matchedUser: simulatedUser, privateRoom });
-        socket.emit('randomChatMatched', { 
-          user1: this.users.get(socket.id), 
-          user2: simulatedUser 
-        });
-        
-        // Add a welcome message
-        if (!this.roomMessages.has(privateRoom)) {
-          this.roomMessages.set(privateRoom, []);
-        }
-        this.roomMessages.get(privateRoom)?.push({
-          id: generateId(),
-          content: 'You are now chatting with Alex. Say hello!',
-          sender: {
-            id: 'system',
-            name: 'System',
-            email: '',
-            photoURL: '',
-            online: true
-          },
-          timestamp: Date.now(),
-          room: privateRoom,
-          reactions: []
-        });
-      }, 1500);
-    });
-    
-    socket.on('endRandomChat', () => {
-      console.log("Mock: Random chat ended");
-      socket.emit('randomChatEnded');
-    });
-    
     socket.on('disconnect', () => {
       const user = this.users.get(socket.id);
       console.log("Mock: User disconnected", user);
@@ -260,9 +182,6 @@ class MockSocketService {
             this.emitToRoom(room, 'room_users', roomUsers);
           }
         }
-        
-        // Remove from waiting list
-        this.waitingForRandomMatch.delete(socket.id);
         
         // Remove from users
         this.users.delete(socket.id);
@@ -321,19 +240,6 @@ export function createMockSocketService(user: User) {
     },
     sendMessage: (message: Message) => {
       socket.emit('send_message', message);
-    },
-    addReaction: (messageId: string, reaction: string, user: User, room: string) => {
-      socket.emit('add_reaction', { messageId, reaction, user, room });
-    },
-    findRandomMatch: (user: User) => {
-      socket.emit('find_random_match', { user });
-      return null; // Matching happens asynchronously
-    },
-    updateWhiteboard: (data: any) => {
-      socket.emit('whiteboard_update', data);
-    },
-    votePoll: (pollId: string, optionId: string, userId: string, room: string) => {
-      socket.emit('poll_vote', { pollId, optionId, userId, room });
     }
   };
 }

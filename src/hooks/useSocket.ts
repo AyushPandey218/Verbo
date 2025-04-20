@@ -1,485 +1,639 @@
+
+// We're only adding a small piece of code to store the user data
+
 import { useState, useEffect, useRef, useCallback } from 'react';
-import SocketService from '@/utils/socketService';
+import { io, Socket } from 'socket.io-client';
 import { User, Message, generateId } from '@/utils/messageUtils';
-import { useToast } from '@/components/ui/use-toast';
-import { SOCKET_SERVER_URL, DEBUG_SOCKET_EVENTS } from '@/utils/config';
-import { isOffline } from '@/utils/socket';
+import FirebaseService from '@/utils/firebaseService';
+import { 
+  socketServerUrl, 
+  USE_MOCK_SOCKET_FALLBACK, 
+  PREVENT_DUPLICATE_MESSAGES, 
+  DUPLICATE_MESSAGE_WINDOW,
+  POLL_DUPLICATE_WINDOW,
+  USER_ONLINE_TIMEOUT,
+  MESSAGE_HISTORY_WINDOW
+} from '@/utils/config';
+import { PollData } from '@/components/Poll';
+import { createMockSocketService } from '@/utils/mockSocketService';
 
-interface UseSocketProps {
-  user: User;
-  roomName?: string;
+type WhiteboardData = {
+  roomId: string;
+  userId: string;
+  drawingData: string;
+};
+
+// Define VoiceMessageOptions interface
+interface VoiceMessageOptions {
+  isVoiceMessage?: boolean;
+  audioUrl?: string;
+  audioData?: string;
 }
 
-export interface UseSocketReturn {
-  messages: Message[];
-  sendMessage: (content: string, user: User, roomName: string, voiceData?: any) => void;
-  sendVoiceMessage: (blob: Blob, audioUrl: string) => void;
-  sendWhiteboardData: (data: any) => void;
-  onlineUsers: User[];
-  matchedUser: User | null;
-  privateRoomCode: string | null;
-  connected: boolean;
-  reconnecting: boolean;
-  error: string | null;
-  isRandomChat: boolean;
-  isWaitingForMatch: boolean;
-  currentRoom: string | null;
-  sendPoll: (pollData: any) => void;
-  votePoll: (pollId: string, optionId: string) => void;
-  addReaction: (messageId: string, reaction: string, user: User) => void;
-  saveDrawing: (imageUrl: string) => void;
-  whiteboardData: string | undefined;
-  joinRoom: (roomName: string, user: User) => void;
-  leaveRoom: (roomName: string, user: User) => void;
-  offlineMode: boolean;
-}
-
-export const useSocket = ({ user, roomName = 'general' }: UseSocketProps): UseSocketReturn => {
-  const [socket, setSocket] = useState<any | null>(null);
+export const useSocket = (initialUser: User | null) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
-  const [matchedUser, setMatchedUser] = useState<User | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [privateRoomCode, setPrivateRoomCode] = useState<string | null>(null);
-  const [isRandomChat, setIsRandomChat] = useState(false);
+  const [matchedUser, setMatchedUser] = useState<User | null>(null);
   const [isWaitingForMatch, setIsWaitingForMatch] = useState(false);
-  const [currentRoom, setCurrentRoom] = useState<string | null>(roomName || null);
   const [whiteboardData, setWhiteboardData] = useState<string | undefined>(undefined);
-  
-  const [offlineMode, setOfflineMode] = useState(isOffline());
-  
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = useRef(10);
-  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
-  const { toast } = useToast();
-  
-  // Extract room code from room name if it's a private room
-  useEffect(() => {
-    if (roomName && roomName.startsWith('private-')) {
-      const parts = roomName.split('-');
-      if (parts.length >= 2) {
-        setPrivateRoomCode(parts[1]);
-      }
-    } else {
-      setPrivateRoomCode(null);
-    }
-  }, [roomName]);
+  const [useMockSocket, setUseMockSocket] = useState(USE_MOCK_SOCKET_FALLBACK);
 
-  // Connect to socket server with improved error handling
-  useEffect(() => {
-    if (!user) return;
+  const socketRef = useRef<Socket | null>(null);
+  const mockSocketRef = useRef<any>(null);
+  const firebaseServiceRef = useRef<FirebaseService>(FirebaseService.getInstance());
+  const userRef = useRef<User | null>(initialUser);
+  const roomRef = useRef<string | null>(null);
+  const processedMessageIds = useRef<Set<string>>(new Set());
+  const processedPollIds = useRef<Set<string>>(new Set());
+  
+  const cleanupListeners = useRef<(() => void)[]>([]);
+  const initialRoomLoadComplete = useRef<boolean>(false);
+  const initialLoadTimestamp = useRef<number>(0);
+  const messageOperationInProgress = useRef<boolean>(false);
+  const pollOperationInProgress = useRef<boolean>(false);
+
+  const isDuplicateMessage = useCallback((messageId: string, isPoll: boolean = false): boolean => {
+    if (!PREVENT_DUPLICATE_MESSAGES) return false;
     
-    // Check offline mode first
-    if (isOffline()) {
-      setOfflineMode(true);
-      setConnected(false);
-      setReconnecting(false);
-      setError("You are in offline mode");
-      console.log("Starting in offline mode");
-      
-      // If we're in offline mode, we still need to set up a socket instance (dummy)
-      const socketService = SocketService.getInstance();
-      setSocket(socketService.getSocket());
-      
+    if (processedMessageIds.current.has(messageId)) {
+      console.log(`Duplicate message detected: ${messageId}`);
+      return true;
+    }
+    
+    if (isPoll && processedPollIds.current.has(messageId)) {
+      console.log(`Duplicate poll detected: ${messageId}`);
+      return true;
+    }
+    
+    processedMessageIds.current.add(messageId);
+    
+    setTimeout(() => {
+      processedMessageIds.current.delete(messageId);
+    }, isPoll ? POLL_DUPLICATE_WINDOW : DUPLICATE_MESSAGE_WINDOW);
+    
+    if (isPoll) {
+      processedPollIds.current.add(messageId);
+      setTimeout(() => {
+        processedPollIds.current.delete(messageId);
+      }, POLL_DUPLICATE_WINDOW);
+    }
+    
+    return false;
+  }, []);
+
+  const filterRecentMessages = useCallback((messages: Message[]): Message[] => {
+    const cutoffTime = Date.now() - MESSAGE_HISTORY_WINDOW;
+    return messages.filter(msg => msg.timestamp >= cutoffTime);
+  }, []);
+
+  useEffect(() => {
+    userRef.current = initialUser;
+    
+    if (initialUser) {
+      console.log("User initialized in socket hook:", initialUser);
+      // Store current user in localStorage for persistence
+      localStorage.setItem('currentUser', JSON.stringify(initialUser));
+    }
+  }, [initialUser]);
+
+  useEffect(() => {
+    console.log("Setting up socket connection");
+    
+    if (!initialUser) {
+      console.log("No user, not setting up socket connection");
       return;
     }
     
-    const connectSocket = async () => {
+    if (socketRef.current) {
+      console.log("Cleaning up previous socket connection");
+      socketRef.current.disconnect();
+      socketRef.current.removeAllListeners();
+    }
+    
+    if (!useMockSocket) {
       try {
-        setReconnecting(true);
-        console.log('Connecting to socket service...');
+        console.log(`Connecting to socket server: ${socketServerUrl}`);
+        socketRef.current = io(socketServerUrl, {
+          transports: ['websocket', 'polling'],
+          query: {
+            userId: initialUser.id
+          }
+        });
         
-        const socketService = SocketService.getInstance();
-        const socketInstance = await socketService.connect();
+        socketRef.current.on('connect', () => {
+          console.log("Socket connected");
+          setConnected(true);
+          setError(null);
+          
+          firebaseServiceRef.current.loginUser(initialUser);
+        });
         
-        if (!socketInstance) {
-          throw new Error('Failed to initialize socket service');
-        }
-        
-        // Check if we switched to offline mode during connection
-        if (isOffline()) {
-          setOfflineMode(true);
+        socketRef.current.on('disconnect', () => {
+          console.log("Socket disconnected");
           setConnected(false);
-          setReconnecting(false);
-          setError("You are in offline mode");
-          return;
-        }
+        });
         
-        setSocket(socketInstance);
-        setConnected(true);
-        setReconnecting(false);
-        setError(null);
-        reconnectAttempts.current = 0;
-        
-        console.log('Socket connection established successfully');
-        
-        // Auto-join room if specified
-        if (roomName) {
-          console.log(`Auto-joining room: ${roomName}`);
-          joinRoom(roomName, user);
-        }
-      } catch (err: any) {
-        console.error('Socket connection error:', err);
-        
-        // Check if we're in offline mode
-        if (isOffline()) {
-          setOfflineMode(true);
+        socketRef.current.on('connect_error', (error) => {
+          console.error("Socket connection error:", error);
+          setError(`Connection error: ${error.message}`);
           setConnected(false);
-          setReconnecting(false);
-          setError("You are in offline mode");
-          return;
-        }
-        
-        setConnected(false);
-        setError(err.message || 'Failed to connect to chat service');
-        
-        // Implement reconnection logic with exponential backoff
-        reconnectAttempts.current += 1;
-        
-        if (reconnectAttempts.current <= maxReconnectAttempts.current) {
           setReconnecting(true);
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current - 1), 30000);
           
-          console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current}/${maxReconnectAttempts.current})`);
+          setUseMockSocket(true);
+        });
+        
+        socketRef.current.on('reconnect', (attemptNumber) => {
+          console.log(`Socket reconnected after ${attemptNumber} attempts`);
+          setConnected(true);
+          setReconnecting(false);
+          setError(null);
           
-          if (reconnectTimer.current) {
-            clearTimeout(reconnectTimer.current);
+          if (roomRef.current && userRef.current) {
+            console.log(`Auto-rejoining room ${roomRef.current}`);
+            joinRoom(roomRef.current, userRef.current);
+          }
+        });
+        
+        socketRef.current.on('whiteboard_update', (data: WhiteboardData) => {
+          console.log("Received whiteboard update from socket:", data.userId);
+          
+          if (data.userId !== userRef.current?.id && data.roomId === roomRef.current) {
+            console.log("Updating whiteboard with new data");
+            setWhiteboardData(data.drawingData);
+          }
+        });
+        
+        socketRef.current.on('random_match_found', (data: { matchedUser: User }) => {
+          console.log("Random match found:", data.matchedUser);
+          setMatchedUser(data.matchedUser);
+          setIsWaitingForMatch(false);
+        });
+        
+        socketRef.current.on('random_match_ended', () => {
+          console.log("Random match ended");
+          setMatchedUser(null);
+          setIsWaitingForMatch(false);
+        });
+      } catch (err) {
+        console.error("Error initializing socket:", err);
+        setError(`Error initializing socket: ${err}`);
+        setUseMockSocket(true);
+      }
+    }
+    
+    if (useMockSocket) {
+      try {
+        console.log("Initializing mock socket service");
+        mockSocketRef.current = createMockSocketService(initialUser);
+        setConnected(true);
+        setError(null);
+        
+        firebaseServiceRef.current.loginUser(initialUser);
+      } catch (err) {
+        console.error("Error initializing mock socket:", err);
+        setError(`Error initializing mock socket: ${err}`);
+      }
+    }
+
+    return () => {
+      console.log("Cleaning up socket connection on unmount");
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      
+      if (userRef.current && roomRef.current) {
+        console.log(`Marking user ${userRef.current.id} as offline before cleanup`);
+        firebaseServiceRef.current.markUserOffline(userRef.current.id, roomRef.current);
+      }
+      
+      firebaseServiceRef.current.removeAllListeners();
+      
+      cleanupListeners.current.forEach(cleanup => cleanup());
+      cleanupListeners.current = [];
+    };
+  }, [initialUser, socketServerUrl, useMockSocket]);
+
+  const watchRoomMessages = useCallback((roomId: string) => {
+    initialRoomLoadComplete.current = false;
+    initialLoadTimestamp.current = Date.now();
+    processedMessageIds.current.clear();
+    processedPollIds.current.clear();
+    
+    const messagesRef = firebaseServiceRef.current.watchRoomMessages(roomId, (msgs) => {
+      console.log(`Got ${msgs.length} messages for room ${roomId}`);
+      
+      const recentMessages = filterRecentMessages(msgs);
+      
+      if (!initialRoomLoadComplete.current) {
+        console.log("Initial room messages loaded");
+        
+        recentMessages.forEach(msg => {
+          processedMessageIds.current.add(msg.id);
+          if (msg.content.startsWith('__POLL__:')) {
+            try {
+              const pollData = JSON.parse(msg.content.replace('__POLL__:', ''));
+              if (pollData && pollData.id) {
+                processedPollIds.current.add(pollData.id);
+              }
+            } catch (e) {
+              console.error('Error parsing poll data:', e);
+            }
+          }
+        });
+        
+        setMessages(recentMessages);
+        initialRoomLoadComplete.current = true;
+        return;
+      }
+      
+      if (PREVENT_DUPLICATE_MESSAGES) {
+        if (messageOperationInProgress.current) {
+          console.log("Message operation in progress, skipping update");
+          return;
+        }
+        
+        const newMessages = recentMessages.filter(msg => {
+          if (msg.content.startsWith('__POLL__:')) {
+            try {
+              const pollData = JSON.parse(msg.content.replace('__POLL__:', ''));
+              if (pollData && pollData.id) {
+                if (processedPollIds.current.has(pollData.id)) {
+                  return false;
+                }
+                processedPollIds.current.add(pollData.id);
+                setTimeout(() => {
+                  processedPollIds.current.delete(pollData.id);
+                }, POLL_DUPLICATE_WINDOW);
+              }
+            } catch (e) {
+              console.error('Error parsing poll data:', e);
+            }
           }
           
-          reconnectTimer.current = setTimeout(() => {
-            connectSocket();
-          }, delay);
-        } else {
-          setReconnecting(false);
-          setError('Failed to connect after multiple attempts. Please refresh the page or enable offline mode.');
-          toast({
-            variant: "destructive",
-            title: "Connection Failed",
-            description: "Unable to establish a secure connection. You can continue in offline mode with limited functionality.",
+          return !processedMessageIds.current.has(msg.id) && 
+                 msg.timestamp > initialLoadTimestamp.current;
+        });
+        
+        if (newMessages.length > 0) {
+          console.log(`Adding ${newMessages.length} new messages`);
+          newMessages.forEach(msg => processedMessageIds.current.add(msg.id));
+          
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(msg => msg.id));
+            const uniqueNewMessages = newMessages.filter(msg => !existingIds.has(msg.id));
+            return [...prev, ...uniqueNewMessages];
           });
         }
+      } else {
+        setMessages(recentMessages);
       }
-    };
+    });
     
-    // Check for online status changes
-    const handleOnlineStatusChange = () => {
-      setOfflineMode(isOffline());
-      if (!isOffline() && !connected && !reconnecting) {
-        // We're back online, try to connect
-        reconnectAttempts.current = 0;
-        connectSocket();
-      }
-    };
-    
-    window.addEventListener('online', handleOnlineStatusChange);
-    window.addEventListener('offline', handleOnlineStatusChange);
-    
-    connectSocket();
-    
-    return () => {
-      // Remove event listeners
-      window.removeEventListener('online', handleOnlineStatusChange);
-      window.removeEventListener('offline', handleOnlineStatusChange);
-      
-      // Clean up reconnection timer
-      if (reconnectTimer.current) {
-        clearTimeout(reconnectTimer.current);
-        reconnectTimer.current = null;
-      }
-      
-      // Disconnect socket
-      if (socket) {
-        const socketService = SocketService.getInstance();
-        socketService.disconnect();
-      }
-    };
-  }, [user, roomName, toast]);
+    return messagesRef;
+  }, [isDuplicateMessage, filterRecentMessages]);
 
-  // Function to join a room
   const joinRoom = useCallback((roomName: string, user: User) => {
-    if (!socket) {
-      console.error('Cannot join room: socket not connected');
+    console.log(`Joining room: ${roomName} with user:`, user);
+    
+    if (!useMockSocket && (!socketRef.current || !socketRef.current.connected)) {
+      console.error("Cannot join room: Socket not connected");
+      if (USE_MOCK_SOCKET_FALLBACK) {
+        console.log("Falling back to mock socket service");
+        setUseMockSocket(true);
+        return;
+      }
       return;
     }
     
-    console.log(`Joining room: ${roomName} as ${user.name}`);
-    setCurrentRoom(roomName);
-    
-    // For Firebase implementation, use the appropriate method
-    if (socket.joinRoom && typeof socket.joinRoom === 'function') {
-      socket.joinRoom(roomName, user);
+    if (roomRef.current) {
+      console.log(`Leaving current room: ${roomRef.current}`);
+      leaveRoom(roomRef.current, user);
     }
     
-    if (roomName === 'random') {
-      console.log('Finding random match');
-      if (socket.findRandomMatch && typeof socket.findRandomMatch === 'function') {
-        socket.findRandomMatch(user);
-      }
-      setIsWaitingForMatch(true);
-      setIsRandomChat(true);
-    } else {
-      setIsWaitingForMatch(false);
-      setIsRandomChat(false);
-    }
-  }, [socket]);
-
-  // Function to leave a room
-  const leaveRoom = useCallback((roomName: string, user: User) => {
-    if (!socket) return;
+    cleanupListeners.current.forEach(cleanup => cleanup());
+    cleanupListeners.current = [];
     
-    console.log(`Leaving room: ${roomName}`);
-    setCurrentRoom(null);
     setMessages([]);
+    setOnlineUsers([]);
+    setWhiteboardData(undefined);
+    processedMessageIds.current.clear();
+    initialRoomLoadComplete.current = false;
+    initialLoadTimestamp.current = Date.now();
     
-    // For Firebase implementation, use the appropriate method
-    if (socket.leaveRoom && typeof socket.leaveRoom === 'function') {
-      socket.leaveRoom(roomName, user);
+    if (useMockSocket && mockSocketRef.current) {
+      console.log("Joining room with mock socket service");
+      
+      const mockUsers = mockSocketRef.current.joinRoom(roomName, user);
+      setOnlineUsers([...mockUsers]);
+      
+      const mockMessages = mockSocketRef.current.getMessages(roomName);
+      const recentMockMessages = filterRecentMessages(mockMessages);
+      setMessages([...recentMockMessages]);
+      initialRoomLoadComplete.current = true;
+    } else if (socketRef.current) {
+      socketRef.current.emit('join_room', { roomName, user });
     }
+    
+    firebaseServiceRef.current.joinRoom(roomName, user);
+    
+    const unsubscribeUsers = firebaseServiceRef.current.watchRoomUsers(roomName, (users) => {
+      console.log(`Got ${users.length} users for room ${roomName}`);
+      
+      const activeUsers = users.filter(u => {
+        return !u.lastActive || (Date.now() - u.lastActive) < USER_ONLINE_TIMEOUT;
+      });
+      
+      setOnlineUsers(activeUsers);
+    });
+    
+    const unsubscribeMessages = watchRoomMessages(roomName);
+    
+    cleanupListeners.current.push(unsubscribeUsers);
+    cleanupListeners.current.push(unsubscribeMessages);
     
     if (roomName === 'random') {
-      setIsWaitingForMatch(false);
-      setMatchedUser(null);
-      setIsRandomChat(false);
+      setIsWaitingForMatch(true);
+      
+      const unsubscribeMatch = firebaseServiceRef.current.watchRandomMatch(user.id, (matched) => {
+        if (matched) {
+          console.log("Matched with user:", matched);
+          setMatchedUser(matched);
+          setIsWaitingForMatch(false);
+        }
+      });
+      
+      cleanupListeners.current.push(unsubscribeMatch);
+      
+      if (!useMockSocket && socketRef.current) {
+        socketRef.current.emit('find_random_match', { user });
+      } else if (useMockSocket && mockSocketRef.current) {
+        const matchResult = mockSocketRef.current.findRandomMatch(user);
+        if (matchResult) {
+          setMatchedUser(matchResult);
+          setIsWaitingForMatch(false);
+        }
+      }
     }
-  }, [socket]);
-
-  const sendMessage = useCallback((content: string, user: User, roomName: string, voiceData?: any) => {
-    if (!socket || !content.trim()) return;
     
-    const message: Message = {
+    setCurrentRoom(roomName);
+    roomRef.current = roomName;
+  }, [useMockSocket, isDuplicateMessage, filterRecentMessages, watchRoomMessages]);
+
+  const leaveRoom = useCallback((roomName: string, user: User) => {
+    console.log(`Leaving room: ${roomName}`);
+    
+    if (!useMockSocket && socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('leave_room', { roomName, user });
+    } else if (useMockSocket && mockSocketRef.current) {
+      mockSocketRef.current.leaveRoom(roomName, user);
+    }
+    
+    firebaseServiceRef.current.markUserOffline(user.id, roomName);
+    firebaseServiceRef.current.leaveRoom(roomName, user);
+    
+    cleanupListeners.current.forEach(cleanup => cleanup());
+    cleanupListeners.current = [];
+    
+    setMessages([]);
+    setOnlineUsers([]);
+    setCurrentRoom(null);
+    setMatchedUser(null);
+    setIsWaitingForMatch(false);
+    setWhiteboardData(undefined);
+    processedMessageIds.current.clear();
+    
+    roomRef.current = null;
+  }, [useMockSocket]);
+
+  const sendMessage = useCallback((
+    content: string, 
+    sender: User, 
+    room: string, 
+    options?: VoiceMessageOptions
+  ) => {
+    console.log(`Sending message to room ${room}:`, content);
+    
+    if (!useMockSocket && (!socketRef.current || !socketRef.current.connected)) {
+      console.error("Cannot send message: Socket not connected");
+      return;
+    }
+    
+    messageOperationInProgress.current = true;
+    
+    const newMessage: Message = {
       id: generateId(),
       content,
-      sender: user,
-      room: roomName,
+      sender,
       timestamp: Date.now(),
-      reactions: []
+      room,
+      reactions: [],
+      isVoiceMessage: options?.isVoiceMessage || false,
+      voiceUrl: options?.audioUrl
     };
     
-    if (voiceData && voiceData.isVoiceMessage) {
-      message.isVoiceMessage = true;
-      message.voiceUrl = voiceData.audioUrl;
+    console.log("Created message:", newMessage);
+    
+    processedMessageIds.current.add(newMessage.id);
+    
+    setTimeout(() => {
+      processedMessageIds.current.delete(newMessage.id);
+    }, DUPLICATE_MESSAGE_WINDOW);
+    
+    setMessages(prev => [...prev, newMessage]);
+    
+    if (!useMockSocket && socketRef.current) {
+      socketRef.current.emit('message', newMessage);
+    } else if (useMockSocket && mockSocketRef.current) {
+      mockSocketRef.current.sendMessage(newMessage);
     }
     
-    if (DEBUG_SOCKET_EVENTS) console.log('Sending message:', message);
+    firebaseServiceRef.current.sendMessage(newMessage);
     
-    if (socket.sendMessage && typeof socket.sendMessage === 'function') {
-      socket.sendMessage(message);
-    }
-    
-    setMessages(prev => [...prev, message]);
-  }, [socket]);
+    setTimeout(() => {
+      messageOperationInProgress.current = false;
+    }, 300);
+  }, [useMockSocket]);
 
-  // Function to send voice messages
-  const sendVoiceMessage = useCallback((blob: Blob, audioUrl: string) => {
-    if (!socket) return;
-    
-    const message: Message = {
-      id: generateId(),
-      content: "Voice message",
-      sender: user,
-      room: roomName,
-      timestamp: Date.now(),
-      isVoiceMessage: true,
-      voiceUrl: audioUrl,
-      reactions: []
-    };
-    
-    if (DEBUG_SOCKET_EVENTS) console.log('Sending voice message:', message);
-    
-    if (socket.sendVoiceMessage && typeof socket.sendVoiceMessage === 'function') {
-      socket.sendVoiceMessage(message);
-    }
-    
-    setMessages(prev => [...prev, message]);
-  }, [socket]);
-
-  // Function to send whiteboard data
-  const sendWhiteboardData = useCallback((data: any) => {
-    if (!socket) return;
-    
-    const whiteboardDataObj = {
-      data,
-      room: roomName,
-      sender: user.id
-    };
-    
-    if (socket.updateWhiteboardData && typeof socket.updateWhiteboardData === 'function') {
-      socket.updateWhiteboardData(roomName, user.id, data);
-    }
-  }, [socket]);
-
-  // Function to save drawing as image message
-  const saveDrawing = useCallback((imageUrl: string) => {
-    if (!socket) return;
-    
-    const message: Message = {
-      id: generateId(),
-      content: "[sticker]" + imageUrl + "[/sticker]",
-      sender: user,
-      room: roomName,
-      timestamp: Date.now(),
-      reactions: []
-    };
-    
-    if (socket.sendMessage && typeof socket.sendMessage === 'function') {
-      socket.sendMessage(message);
-    }
-    
-    toast({
-      description: "Drawing saved to chat!",
-      duration: 3000,
-    });
-  }, [socket, user, roomName, toast]);
-
-  // Function to create a poll
-  const sendPoll = useCallback((pollData: any) => {
-    if (!socket) return;
-    
-    // Add missing fields
-    const poll = {
-      ...pollData,
-      id: generateId(),
-      createdAt: Date.now(),
-    };
-    
-    // Convert to special message format
-    const message: Message = {
-      id: generateId(),
-      content: `__POLL__:${JSON.stringify(poll)}`,
-      sender: user,
-      room: roomName,
-      timestamp: Date.now(),
-      reactions: []
-    };
-    
-    if (DEBUG_SOCKET_EVENTS) console.log('Sending poll:', message);
-    
-    if (socket.sendMessage && typeof socket.sendMessage === 'function') {
-      socket.sendMessage(message);
-    }
-    
-    setMessages(prev => [...prev, message]);
-  }, [socket, user, roomName]);
-
-  // Function to vote on a poll
-  const votePoll = useCallback((pollId: string, optionId: string) => {
-    if (!socket) return;
-    
-    const voteData = {
-      pollId,
-      optionId,
-      user,
-      room: roomName,
-      timestamp: Date.now()
-    };
-    
-    if (DEBUG_SOCKET_EVENTS) console.log('Sending poll vote:', voteData);
-    
-    if (socket.votePoll && typeof socket.votePoll === 'function') {
-      socket.votePoll(pollId, optionId, user.id, roomName);
-    }
-    
-    // Optimistically update UI
-    setMessages(prevMessages => {
-      return prevMessages.map(message => {
-        if (message.content?.startsWith('__POLL__:')) {
-          try {
-            const pollString = message.content.replace('__POLL__:', '');
-            const poll = JSON.parse(pollString);
-            
-            if (poll.id === pollId) {
-              // Update the poll with the new vote
-              const updatedOptions = poll.options.map((option: any) => {
-                if (option.id === optionId) {
-                  const votes = option.votes || [];
-                  // Only add vote if user hasn't voted for this option
-                  if (!votes.some((v: any) => v.userId === user.id)) {
-                    return {
-                      ...option,
-                      votes: [...votes, { userId: user.id, timestamp: Date.now() }]
-                    };
-                  }
-                }
-                return option;
-              });
-              
-              const updatedPoll = { ...poll, options: updatedOptions };
-              return { ...message, content: `__POLL__:${JSON.stringify(updatedPoll)}` };
-            }
-          } catch (e) {
-            console.error('Error updating poll vote:', e);
-          }
-        }
-        return message;
-      });
-    });
-  }, [socket, user, roomName]);
-
-  // Function to add reaction to a message
   const addReaction = useCallback((messageId: string, reaction: string, user: User) => {
-    if (!socket) return;
+    console.log(`Adding reaction ${reaction} to message ${messageId}`);
     
-    const reactionData = {
-      messageId,
-      reaction,
-      user,
-      room: currentRoom,
-      timestamp: Date.now()
-    };
-    
-    if (DEBUG_SOCKET_EVENTS) console.log('Adding reaction:', reactionData);
-    
-    // For Firebase implementation, use the appropriate method
-    if (socket.addReaction && typeof socket.addReaction === 'function') {
-      socket.addReaction(messageId, reaction, user, currentRoom || 'general');
+    if (!useMockSocket && (!socketRef.current || !socketRef.current.connected)) {
+      console.error("Cannot add reaction: Socket not connected");
+      return;
     }
     
-    // Optimistically update UI
-    setMessages(prevMessages => {
-      return prevMessages.map(message => {
+    if (!currentRoom) {
+      console.error("Cannot add reaction: No current room");
+      return;
+    }
+
+    if (!useMockSocket && socketRef.current) {
+      socketRef.current.emit('reaction', { messageId, reaction, user, roomId: currentRoom });
+    } else if (useMockSocket && mockSocketRef.current) {
+      mockSocketRef.current.addReaction(messageId, reaction, user, currentRoom);
+    }
+    
+    firebaseServiceRef.current.addReaction(messageId, reaction, user, currentRoom);
+    
+    setMessages(prevMessages => 
+      prevMessages.map(message => {
         if (message.id === messageId) {
-          const updatedMessage = { ...message };
+          const existingReactionIndex = message.reactions.findIndex(
+            r => r.user.id === user.id && r.reaction === reaction
+          );
           
-          if (!updatedMessage.reactions) {
-            updatedMessage.reactions = [];
+          if (existingReactionIndex !== -1) {
+            return {
+              ...message,
+              reactions: message.reactions.filter((_, index) => index !== existingReactionIndex)
+            };
+          } else {
+            return {
+              ...message,
+              reactions: [...message.reactions, { user, reaction, timestamp: Date.now() }]
+            };
           }
-          
-          updatedMessage.reactions.push({
-            emoji: reaction,
-            userId: user.id,
-            userName: user.name
-          });
-          
-          return updatedMessage;
         }
         return message;
+      })
+    );
+  }, [currentRoom, useMockSocket]);
+
+  const sendWhiteboardData = useCallback((data: WhiteboardData) => {
+    console.log("Sending whiteboard data to room:", data.roomId);
+    
+    if (!useMockSocket && (!socketRef.current || !socketRef.current.connected)) {
+      console.error("Cannot send whiteboard data: Socket not connected");
+      return;
+    }
+    
+    if (!useMockSocket && socketRef.current) {
+      socketRef.current.emit('whiteboard_update', data);
+    } else if (useMockSocket && mockSocketRef.current) {
+      mockSocketRef.current.updateWhiteboard(data);
+    }
+    
+    const drawingRef = `rooms/${data.roomId}/whiteboard`;
+    const db = firebaseServiceRef.current.getDatabase();
+    if (db) {
+      const ref = firebaseServiceRef.current.getDatabaseRef(drawingRef);
+      firebaseServiceRef.current.setDatabaseValue(ref, {
+        lastUpdated: Date.now(),
+        userId: data.userId,
+        drawingData: data.drawingData
       });
-    });
-  }, [socket, currentRoom]);
+    }
+  }, [useMockSocket]);
+
+  const sendPoll = useCallback((pollData: Omit<PollData, 'id' | 'createdAt'>) => {
+    console.log("Creating poll in room:", currentRoom);
+    
+    if (!useMockSocket && (!socketRef.current || !socketRef.current.connected) || !currentRoom) {
+      console.error("Cannot create poll: Socket not connected or no current room");
+      return;
+    }
+    
+    if (pollOperationInProgress.current) {
+      console.log("Poll operation already in progress, skipping");
+      return;
+    }
+    
+    pollOperationInProgress.current = true;
+    
+    const pollId = generateId();
+    
+    const completePollData: PollData = {
+      ...pollData,
+      id: pollId,
+      createdAt: Date.now()
+    };
+    
+    console.log("Created complete poll data:", completePollData);
+    
+    if (currentRoom) {
+      firebaseServiceRef.current.sendPoll(completePollData, currentRoom);
+    }
+    
+    processedPollIds.current.add(pollId);
+    
+    const pollMessage: Message = {
+      id: generateId(),
+      content: `__POLL__:${JSON.stringify(completePollData)}`,
+      sender: userRef.current!,
+      timestamp: Date.now(),
+      room: currentRoom,
+      reactions: []
+    };
+    
+    processedMessageIds.current.add(pollMessage.id);
+    
+    console.log("Sending poll message:", pollMessage);
+    
+    if (!useMockSocket && socketRef.current) {
+      socketRef.current.emit('message', pollMessage);
+    } else if (useMockSocket && mockSocketRef.current) {
+      mockSocketRef.current.sendMessage(pollMessage);
+    }
+    
+    firebaseServiceRef.current.sendMessage(pollMessage);
+    
+    setMessages(prevMessages => [...prevMessages, pollMessage]);
+    
+    setTimeout(() => {
+      pollOperationInProgress.current = false;
+    }, POLL_DUPLICATE_WINDOW);
+  }, [currentRoom, useMockSocket]);
+
+  const votePoll = useCallback((pollId: string, optionId: string) => {
+    console.log(`useSocket.votePoll: Poll ${pollId}, option ${optionId}`);
+    
+    if (!userRef.current) {
+      console.error("Cannot vote on poll: No current user");
+      return;
+    }
+    
+    if (!currentRoom) {
+      console.error("Cannot vote on poll: No current room");
+      return;
+    }
+    
+    console.log(`Voting: Poll: ${pollId}, Option: ${optionId}, User: ${userRef.current.id}, Room: ${currentRoom}`);
+    
+    firebaseServiceRef.current.votePoll(pollId, optionId, userRef.current.id, currentRoom);
+    
+    if (!useMockSocket && socketRef.current) {
+      socketRef.current.emit('poll_vote', { 
+        pollId, 
+        optionId, 
+        userId: userRef.current.id,
+        roomId: currentRoom 
+      });
+    } else if (useMockSocket && mockSocketRef.current) {
+      mockSocketRef.current.votePoll(pollId, optionId, userRef.current.id, currentRoom);
+    }
+  }, [currentRoom, useMockSocket]);
 
   return {
     messages,
-    sendMessage,
-    sendVoiceMessage,
-    sendWhiteboardData,
     onlineUsers,
-    matchedUser,
-    privateRoomCode,
+    currentRoom,
+    joinRoom,
+    leaveRoom,
+    sendMessage,
+    addReaction,
     connected,
     reconnecting,
     error,
-    isRandomChat,
+    matchedUser,
     isWaitingForMatch,
-    currentRoom,
-    sendPoll,
-    votePoll,
-    addReaction,
-    saveDrawing,
+    sendWhiteboardData,
     whiteboardData,
-    joinRoom,
-    leaveRoom,
-    offlineMode,
+    sendPoll,
+    votePoll
   };
 };

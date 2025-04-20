@@ -1,127 +1,91 @@
+import { formatDistanceToNow } from 'date-fns';
 
-import { v4 as uuidv4 } from 'uuid';
-
-// User type
+// Define types
 export interface User {
   id: string;
   name: string;
-  email?: string;
-  photoURL?: string;
-  online?: boolean;
-  lastSeen?: number;
+  email: string;
+  photoURL: string;
+  online: boolean;
   isGuest?: boolean;
-  lastActive?: number;
+  friends?: string[]; // Array of friend user IDs
+  lastActive?: number; // Timestamp of the user's last activity
+  leftAt?: number; // Timestamp when user went offline
+  joinedAt?: number; // Timestamp when user joined (came online)
 }
 
-// Message type
+export interface Reaction {
+  user: User;
+  reaction: string;
+  timestamp: number;
+}
+
 export interface Message {
   id: string;
   content: string;
   sender: User;
-  room: string;
   timestamp: number;
+  room: string;
   reactions?: Reaction[];
   isVoiceMessage?: boolean;
   voiceUrl?: string;
-  voiceMessage?: {
-    audioUrl: string;
-    duration: number;
-  };
 }
 
-// Reaction type
-export interface Reaction {
-  emoji: string;
-  userId: string;
-  userName: string;
-}
-
-// Room type
 export interface Room {
   id: string;
   name: string;
-  createdBy: string;
   users: User[];
-  createdAt: number;
+  isGroup?: boolean;
+  groupCode?: string;
+  createdBy?: string;
+  privateCode?: string; // Add private code property
 }
 
-// Create guest user
-export const createGuestUser = (name: string): User => {
-  return {
-    id: `guest-${generateId()}`,
-    name,
-    email: `guest@verbo.chat`,
-    photoURL: `https://api.dicebear.com/7.x/personas/svg?seed=${name}`,
-    online: true,
-    isGuest: true,
-    lastActive: Date.now(),
-    lastSeen: Date.now()
-  };
+export interface FriendRequest {
+  id: string;
+  from: User;
+  to: User;
+  status: 'pending' | 'accepted' | 'rejected';
+  timestamp: number;
+}
+
+// Generate a unique ID
+export const generateId = (): string => {
+  return Math.random().toString(36).substring(2, 15) + 
+         Math.random().toString(36).substring(2, 15);
 };
 
-// Get greeting based on time of day
+// Generate a group code
+export const generateGroupCode = (): string => {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
+// Format timestamp in a friendly way
+export const formatTimestamp = (timestamp: number): string => {
+  return formatDistanceToNow(timestamp, { addSuffix: true });
+};
+
+// Check if a message is from the current user
+export const isOwnMessage = (message: Message, userId: string): boolean => {
+  return message.sender.id === userId;
+};
+
+// Get a greeting based on the time of day
 export const getGreeting = (): string => {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 };
 
-// Format timestamp to human-readable time
-export const formatTimestamp = (timestamp: number): string => {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  
-  // If less than a minute ago
-  if (diff < 60 * 1000) {
-    return 'Just now';
-  }
-  
-  // If less than an hour ago
-  if (diff < 60 * 60 * 1000) {
-    const minutes = Math.floor(diff / (60 * 1000));
-    return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-  }
-  
-  // If today
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-  
-  // If yesterday
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (date.toDateString() === yesterday.toDateString()) {
-    return `Yesterday at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }
-  
-  // Otherwise, show full date
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-// Check if message is from current user
-export const isOwnMessage = (message: Message, currentUser: User | null): boolean => {
-  if (!currentUser) return false;
-  return message.sender.id === currentUser.id;
-};
-
-// Generate random group code
-export const generateGroupCode = (): string => {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  return code;
-};
-
-// Generate random ID
-export const generateId = (): string => {
-  return uuidv4();
+// Create a guest user
+export const createGuestUser = (name: string): User => {
+  return {
+    id: 'guest-' + generateId(),
+    name: name || 'Guest User',
+    email: 'guest@verbo.chat',
+    photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name || 'guest'}`,
+    online: true,
+    isGuest: true
+  };
 };

@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { 
   Download, 
   Eraser, 
@@ -19,21 +18,13 @@ import {
   PaintBucket,
   Type,
   Plus,
-  Minus,
-  LayoutTemplate,
-  Square,
-  Circle as CircleIcon,
-  Triangle,
-  Minus as LineIcon // Using Minus icon for Line since LineSegment doesn't exist
+  Minus
 } from 'lucide-react';
 import { Toggle } from '@/components/ui/toggle';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
-import WhiteboardTemplates from './WhiteboardTemplates';
-import { User } from '@/utils/types';
-import StickerPicker from './StickerPicker';
-import EnhancedColorPicker from './EnhancedColorPicker';
-import { useShapeDrawing, Shape } from '../hooks/useShapeDrawing';
+import { Card, CardContent } from '@/components/ui/card';
+import { User } from '@/utils/messageUtils';
 
 interface WhiteboardProps {
   roomId: string;
@@ -76,9 +67,6 @@ const Whiteboard: React.FC<WhiteboardProps> = ({
   const [drawingHistory, setDrawingHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [scale, setScale] = useState(1);
-  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
-  const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
-  const [selectedSticker, setSelectedSticker] = useState<string | null>(null);
   const [isBrushActive, setIsBrushActive] = useState(false);
   const [isTextToolActive, setIsTextToolActive] = useState(false);
   const [text, setText] = useState('');
@@ -106,7 +94,8 @@ const Whiteboard: React.FC<WhiteboardProps> = ({
   const [rulerPosition, setRulerPosition] = useState(50);
   const [isEraserActive, setIsEraserActive] = useState(false);
   const [eraserSize, setEraserSize] = useState(20);
-  // Remove redundant shape state variables since we're using the hook
+  const [isShapeToolActive, setIsShapeToolActive] = useState(false);
+  const [selectedShape, setSelectedShape] = useState<'rectangle' | 'circle'>('rectangle');
   const [shapeStartPoint, setShapeStartPoint] = useState<Point | null>(null);
   const [isLineToolActive, setIsLineToolActive] = useState(false);
   const [lineStartPoint, setLineStartPoint] = useState<Point | null>(null);
@@ -147,7 +136,6 @@ const Whiteboard: React.FC<WhiteboardProps> = ({
   const [cloneDestinationPoint, setCloneDestinationPoint] = useState<Point | null>(null);
   const [isSmudgeToolActive, setIsSmudgeToolActive] = useState(false);
   const [smudgeAmount, setSmudgeAmount] = useState(5);
-  
   const [isTextAlignmentActive, setIsTextAlignmentActive] = useState(false);
   const [textAlignment, setTextAlignment] = useState<'left' | 'center' | 'right'>('left');
   const [isTextBoldActive, setIsTextBoldActive] = useState(false);
@@ -217,7 +205,6 @@ const Whiteboard: React.FC<WhiteboardProps> = ({
   const [textBoxDecorationBreak, setTextBoxDecorationBreak] = useState<'slice' | 'clone'>('slice');
   const [isTextLineClampActive, setIsTextLineClampActive] = useState(false);
   const [textLineClamp, setTextLineClamp] = useState(0);
-  
   const [isTextTextShadowActive, setIsTextTextShadowActive] = useState(false);
   const [textTextShadowColor, setTextTextShadowColor] = useState('#000000');
   const [textTextShadowOffset, setTextTextShadowOffset] = useState({ x: 2, y: 2 });
@@ -283,10 +270,8 @@ const Whiteboard: React.FC<WhiteboardProps> = ({
   const [textTextLineClamp, setTextTextLineClamp] = useState(0);
 
   const drawingDataRef = useRef<DrawingData[]>([]);
-  const onlineUsersWithoutSelf = onlineUsers.filter(u => u.id !== userId);
 
-  // Use the shape drawing hook to get access to drawing functions
-  const { selectedShape, setSelectedShape, startPoint, setStartPoint, drawShape } = useShapeDrawing();
+  const onlineUsersWithoutSelf = onlineUsers.filter(u => u.id !== userId);
 
   const debouncedOnDrawingUpdate = useCallback(
     (data: any) => {
@@ -337,57 +322,33 @@ const Whiteboard: React.FC<WhiteboardProps> = ({
   const startDrawing = ({ nativeEvent }: { nativeEvent: MouseEvent }) => {
     if (!contextRef.current || isTextToolActive) return;
     const { offsetX, offsetY } = nativeEvent;
-    
-    if (selectedShape) {
-      setStartPoint({ x: offsetX, y: offsetY });
-    } else {
-      setIsDrawing(true);
-      if (selectedTool === 'pen') {
-        contextRef.current.beginPath();
-        contextRef.current.moveTo(offsetX, offsetY);
-      } else if (selectedTool === 'eraser') {
-        contextRef.current.clearRect(offsetX - eraserSize / 2, offsetY - eraserSize / 2, eraserSize, eraserSize);
-      }
+    setIsDrawing(true);
+
+    if (selectedTool === 'pen') {
+      contextRef.current.beginPath();
+      contextRef.current.moveTo(offsetX, offsetY);
+    } else if (selectedTool === 'eraser') {
+      contextRef.current.clearRect(offsetX - eraserSize / 2, offsetY - eraserSize / 2, eraserSize, eraserSize);
     }
   };
 
   const draw = ({ nativeEvent }: { nativeEvent: MouseEvent }) => {
-    if ((!isDrawing && !startPoint) || !contextRef.current || isTextToolActive) return;
+    if (!isDrawing || !contextRef.current || isTextToolActive) return;
     const { offsetX, offsetY } = nativeEvent;
 
-    if (selectedShape && startPoint) {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const context = contextRef.current;
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      
-      if (drawingHistory[historyIndex]) {
-        loadImageFromDataUrl(drawingHistory[historyIndex]);
-      }
-
-      drawShape(context, startPoint, { x: offsetX, y: offsetY }, selectedShape, selectedColor);
-    } else if (isDrawing) {
-      if (selectedTool === 'pen') {
-        contextRef.current.lineTo(offsetX, offsetY);
-        contextRef.current.stroke();
-      } else if (selectedTool === 'eraser') {
-        contextRef.current.clearRect(offsetX - eraserSize / 2, offsetY - eraserSize / 2, eraserSize, eraserSize);
-      }
+    if (selectedTool === 'pen') {
+      contextRef.current.lineTo(offsetX, offsetY);
+      contextRef.current.stroke();
+    } else if (selectedTool === 'eraser') {
+      contextRef.current.clearRect(offsetX - eraserSize / 2, offsetY - eraserSize / 2, eraserSize, eraserSize);
     }
   };
 
   const endDrawing = () => {
     if (!contextRef.current) return;
-    
-    if (selectedShape && startPoint) {
-      setStartPoint(null);
-      saveDrawing();
-    } else {
-      setIsDrawing(false);
-      contextRef.current.closePath();
-      saveDrawing();
-    }
+    setIsDrawing(false);
+    contextRef.current.closePath();
+    saveDrawing();
   };
 
   const changeColor = (color: string) => {
@@ -462,143 +423,6 @@ const Whiteboard: React.FC<WhiteboardProps> = ({
     onSaveDrawing(dataURL);
   };
 
-  const handleTemplateSelect = (templateName: string, templateData: any) => {
-    console.log(`Selected template: ${templateName}`, templateData);
-    setIsTemplateDialogOpen(false);
-    
-    const canvas = canvasRef.current;
-    if (!canvas || !contextRef.current) return;
-    
-    contextRef.current.clearRect(0, 0, canvas.width, canvas.height);
-    
-    if (templateData.type === "blank") {
-      // Do nothing, canvas is already cleared
-    } else if (templateData.structure) {
-      drawTemplateStructure(templateData.structure);
-    } else if (templateData.type === "grid") {
-      drawGrid(templateData.gridSize);
-    }
-    
-    saveDrawing();
-  };
-
-  const drawTemplateStructure = (structure: any[]) => {
-    if (!contextRef.current) return;
-    
-    structure.forEach(element => {
-      const ctx = contextRef.current;
-      if (!ctx) return;
-      
-      ctx.save();
-      
-      switch(element.type) {
-        case "text":
-          ctx.font = element.style === "heading" ? "bold 24px Arial" : 
-                    element.style === "subheading" ? "bold 18px Arial" : 
-                    element.style === "columnHeader" ? "bold 16px Arial" : 
-                    element.style === "boxText" ? "14px Arial" : 
-                    "14px Arial";
-          ctx.fillStyle = "#000000";
-          ctx.textAlign = "center";
-          ctx.fillText(element.content, element.position.x, element.position.y);
-          break;
-          
-        case "rectangle":
-          ctx.strokeStyle = "#666666";
-          ctx.lineWidth = 2;
-          ctx.strokeRect(
-            element.position.x - element.width/2, 
-            element.position.y - element.height/2, 
-            element.width, 
-            element.height
-          );
-          break;
-          
-        case "circle":
-          ctx.beginPath();
-          ctx.strokeStyle = "#666666";
-          ctx.lineWidth = 2;
-          ctx.arc(element.position.x, element.position.y, element.radius, 0, Math.PI * 2);
-          ctx.stroke();
-          break;
-          
-        case "arrow":
-          drawArrow(ctx, element.start, element.end);
-          break;
-      }
-      
-      ctx.restore();
-    });
-  };
-
-  const drawArrow = (ctx: CanvasRenderingContext2D, from: Point, to: Point) => {
-    const headLen = 15;
-    const angle = Math.atan2(to.y - from.y, to.x - from.x);
-    
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.strokeStyle = "#666666";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.moveTo(to.x, to.y);
-    ctx.lineTo(to.x - headLen * Math.cos(angle - Math.PI / 6), to.y - headLen * Math.sin(angle - Math.PI / 6));
-    ctx.lineTo(to.x - headLen * Math.cos(angle + Math.PI / 6), to.y - headLen * Math.sin(angle + Math.PI / 6));
-    ctx.closePath();
-    ctx.fillStyle = "#666666";
-    ctx.fill();
-  };
-
-  const drawGrid = (size: number) => {
-    if (!contextRef.current || !canvasRef.current) return;
-    
-    const ctx = contextRef.current;
-    const canvas = canvasRef.current;
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    ctx.beginPath();
-    ctx.strokeStyle = "#dddddd";
-    ctx.lineWidth = 0.5;
-    
-    for (let x = 0; x <= width; x += size) {
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-    }
-    
-    for (let y = 0; y <= height; y += size) {
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-    }
-    
-    ctx.stroke();
-  };
-
-  const handleStickerSelect = (stickerUrl: string) => {
-    console.log("Selected sticker:", stickerUrl);
-    setSelectedSticker(stickerUrl);
-    setIsStickerPickerOpen(false);
-    
-    const canvas = canvasRef.current;
-    if (!canvas || !contextRef.current) return;
-    
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = stickerUrl;
-    img.onload = () => {
-      const x = (canvas.width - img.width) / 2;
-      const y = (canvas.height - img.height) / 2;
-      
-      contextRef.current?.drawImage(img, x, y);
-      saveDrawing();
-    };
-    img.onerror = (err) => {
-      console.error("Error loading sticker:", err);
-    };
-  };
-
   const handleZoomIn = () => {
     setScale(prevScale => Math.min(prevScale + 0.1, 2));
   };
@@ -659,300 +483,436 @@ const Whiteboard: React.FC<WhiteboardProps> = ({
     setIsObjectSnappingActive(!isObjectSnappingActive);
   };
 
-  return (
-    <div className="bg-white w-full h-full relative flex flex-col">
-      <div className="flex items-center justify-between p-2 border-b">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold">Whiteboard</h3>
-          <Badge variant="outline" className="flex items-center gap-1">
-            <Users size={14} />
-            {onlineUsers.length}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
-        </div>
-      </div>
+  const handleRulerToggle = () => {
+    setIsRulerVisible(!isRulerVisible);
+  };
 
-      {showToolbar && (
-        <div className="border-b p-2 flex flex-wrap items-center gap-2">
+  const handleEraserToggle = () => {
+    setIsEraserActive(!isEraserActive);
+  };
+
+  const handleShapeToolToggle = () => {
+    setIsShapeToolActive(!isShapeToolActive);
+  };
+
+  const handleLineToolToggle = () => {
+    setIsLineToolActive(!isLineToolActive);
+  };
+
+  const handleArrowToolToggle = () => {
+    setIsArrowToolActive(!isArrowToolActive);
+  };
+
+  const handleZoomToolToggle = () => {
+    setIsZoomToolActive(!isZoomToolActive);
+  };
+
+  const handleMirrorToolToggle = () => {
+    setIsMirrorToolActive(!isMirrorToolActive);
+  };
+
+  const handleCropToolToggle = () => {
+    setIsCropToolActive(!isCropToolActive);
+  };
+
+  const handleRotateToolToggle = () => {
+    setIsRotateToolActive(!isRotateToolActive);
+  };
+
+  const handleSkewToolToggle = () => {
+    setIsSkewToolActive(!isSkewToolActive);
+  };
+
+  const handlePerspectiveToolToggle = () => {
+    setIsPerspectiveToolActive(!isPerspectiveToolActive);
+  };
+
+  const handleBlurToolToggle = () => {
+    setIsBlurToolActive(!isBlurToolActive);
+  };
+
+  const handleSharpenToolToggle = () => {
+    setIsSharpenToolActive(!isSharpenToolActive);
+  };
+
+  const handleDodgeToolToggle = () => {
+    setIsDodgeToolActive(!isDodgeToolActive);
+  };
+
+  const handleBurnToolToggle = () => {
+    setIsBurnToolActive(!isBurnToolActive);
+  };
+
+  const handleSpongeToolToggle = () => {
+    setIsSpongeToolActive(!isSpongeToolActive);
+  };
+
+  const handleCloneToolToggle = () => {
+    setIsCloneToolActive(!isCloneToolActive);
+  };
+
+  const handleSmudgeToolToggle = () => {
+    setIsSmudgeToolActive(!isSmudgeToolActive);
+  };
+
+  const handleTextAlignmentToggle = () => {
+    setIsTextAlignmentActive(!isTextAlignmentActive);
+  };
+
+  const handleTextBoldToggle = () => {
+    setIsTextBoldActive(!isTextBoldActive);
+  };
+
+  const handleTextItalicToggle = () => {
+    setIsTextItalicActive(!isTextItalicActive);
+  };
+
+  const handleTextUnderlineToggle = () => {
+    setIsTextUnderlineActive(!isTextUnderlineActive);
+  };
+
+  const handleTextStrikethroughToggle = () => {
+    setIsTextStrikethroughActive(!isTextStrikethroughActive);
+  };
+
+  const handleTextShadowToggle = () => {
+    setIsTextShadowActive(!isTextShadowActive);
+  };
+
+  const handleTextOutlineToggle = () => {
+    setIsTextOutlineActive(!isTextOutlineActive);
+  };
+
+  const handleTextGradientToggle = () => {
+    setIsTextGradientActive(!isTextGradientActive);
+  };
+
+  const handleTextPatternToggle = () => {
+    setIsTextPatternActive(!isTextPatternActive);
+  };
+
+  const handleTextSpacingToggle = () => {
+    setIsTextSpacingActive(!isTextSpacingActive);
+  };
+
+  const handleTextKerningToggle = () => {
+    setIsTextKerningActive(!isTextKerningActive);
+  };
+
+  const handleTextTransformToggle = () => {
+    setIsTextTransformActive(!isTextTransformActive);
+  };
+
+  const handleTextVerticalAlignmentToggle = () => {
+    setIsTextVerticalAlignmentActive(!isTextVerticalAlignmentActive);
+  };
+
+  const handleTextDirectionToggle = () => {
+    setIsTextDirectionActive(!isTextDirectionActive);
+  };
+
+  const handleTextWritingModeToggle = () => {
+    setIsTextWritingModeActive(!isTextWritingModeActive);
+  };
+
+  const handleTextOrientationToggle = () => {
+    setIsTextOrientationActive(!isTextOrientationActive);
+  };
+
+  const handleTextUnicodeBidiToggle = () => {
+    setIsTextUnicodeBidiActive(!isTextUnicodeBidiActive);
+  };
+
+  const handleTextRubyToggle = () => {
+    setIsTextRubyActive(!isTextRubyActive);
+  };
+
+  const handleTextEmphasisToggle = () => {
+    setIsTextEmphasisActive(!isTextEmphasisActive);
+  };
+
+  const handleTextJustifyToggle = () => {
+    setIsTextJustifyActive(!isTextJustifyActive);
+  };
+
+  const handleTextHyphensToggle = () => {
+    setIsTextHyphensActive(!isTextHyphensActive);
+  };
+
+  const handleTextOverflowToggle = () => {
+    setIsTextOverflowActive(!isTextOverflowActive);
+  };
+
+  const handleTextWhiteSpaceToggle = () => {
+    setIsTextWhiteSpaceActive(!isTextWhiteSpaceActive);
+  };
+
+  const handleTextWordBreakToggle = () => {
+    setIsTextWordBreakActive(!isTextWordBreakActive);
+  };
+
+  const handleTextOverflowWrapToggle = () => {
+    setIsTextOverflowWrapActive(!isTextOverflowWrapActive);
+  };
+
+  const handleTextTabSizeToggle = () => {
+    setIsTextTabSizeActive(!isTextTabSizeActive);
+  };
+
+  const handleTextInitialLetterToggle = () => {
+    setIsTextInitialLetterActive(!isTextInitialLetterActive);
+  };
+
+  const handleTextColumnsToggle = () => {
+    setIsTextColumnsActive(!isTextColumnsActive);
+  };
+
+  const handleTextColumnRuleToggle = () => {
+    setIsTextColumnRuleActive(!isTextColumnRuleActive);
+  };
+
+  const handleTextBreakInsideToggle = () => {
+    setIsTextBreakInsideActive(!isTextBreakInsideActive);
+  };
+
+  const handleTextBoxDecorationBreakToggle = () => {
+    setIsTextBoxDecorationBreakActive(!isTextBoxDecorationBreakActive);
+  };
+
+  const handleLineClampToggle = () => {
+    setIsTextLineClampActive(!isTextLineClampActive);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-2 bg-gray-100 border-b">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={handleSave} disabled={!onSaveDrawing}>
+            <Save size={16} className="mr-1" />
+            Save
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleDownload}>
+            <Download size={16} className="mr-1" />
+            Download
+          </Button>
+          <Button variant="ghost" size="sm" onClick={clearCanvas}>
+            <Trash2 size={16} className="mr-1" />
+            Clear
+          </Button>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={undoDrawing} disabled={historyIndex <= 0}>
+            <Undo size={16} />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={redoDrawing} disabled={historyIndex >= drawingHistory.length - 1}>
+            <Redo size={16} />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleZoomIn}>
+            <Plus size={16} />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleZoomOut}>
+            <Minus size={16} />
+          </Button>
+        </div>
+        
+        {onlineUsersWithoutSelf.length > 0 && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center mr-2">
+                  <Badge variant="outline" className="px-2 py-1 flex items-center gap-1 bg-indigo-50 text-indigo-700 border-indigo-200">
+                    <Users size={12} />
+                    <span className="text-xs">{onlineUsersWithoutSelf.length}</span>
+                  </Badge>
+                  <div className="flex -space-x-2 ml-2">
+                    {onlineUsersWithoutSelf.slice(0, 3).map(user => (
+                      <Avatar key={user.id} className="h-6 w-6 border-2 border-white">
+                        {user.photoURL ? (
+                          <AvatarImage src={user.photoURL} alt={user.name} />
+                        ) : (
+                          <AvatarFallback className="bg-indigo-500 text-[10px]">
+                            {user.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        )}
+                      </Avatar>
+                    ))}
+                    {onlineUsersWithoutSelf.length > 3 && (
+                      <Avatar className="h-6 w-6 border-2 border-white">
+                        <AvatarFallback className="bg-gray-400 text-[10px]">
+                          +{onlineUsersWithoutSelf.length - 3}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent align="end">
+                <p className="text-sm">Drawing with:</p>
+                <ul className="text-xs">
+                  {onlineUsersWithoutSelf.map(user => (
+                    <li key={user.id}>{user.name}</li>
+                  ))}
+                </ul>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
+      
+      <div className="flex flex-1 relative overflow-hidden">
+        <div className="absolute left-2 top-2 flex flex-col gap-1 z-10 bg-white/80 rounded-md p-1 shadow-sm">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Toggle 
-                  pressed={selectedTool === 'pen'} 
-                  onPressedChange={() => setSelectedTool('pen')}
+                  pressed={selectedTool === 'pen' && !isEraserActive} 
+                  onClick={() => { setIsEraserActive(false); setSelectedTool('pen'); }}
+                  size="sm"
+                  className="w-8 h-8 p-0 data-[state=on]:bg-indigo-100 data-[state=on]:text-indigo-700"
                 >
-                  <PenTool size={16} />
+                  <PenTool size={14} />
                 </Toggle>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Pen</p>
-              </TooltipContent>
+              <TooltipContent side="right">Pen Tool</TooltipContent>
             </Tooltip>
-
+          </TooltipProvider>
+          
+          <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Toggle 
-                  pressed={selectedTool === 'eraser'} 
-                  onPressedChange={() => setSelectedTool('eraser')}
+                  pressed={isEraserActive} 
+                  onClick={handleEraserToggle}
+                  size="sm"
+                  className="w-8 h-8 p-0 data-[state=on]:bg-indigo-100 data-[state=on]:text-indigo-700"
                 >
-                  <Eraser size={16} />
+                  <Eraser size={14} />
                 </Toggle>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Eraser</p>
-              </TooltipContent>
+              <TooltipContent side="right">Eraser</TooltipContent>
             </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Toggle pressed={isTextToolActive} onPressedChange={handleTextToolToggle}>
-                  <Type size={16} />
-                </Toggle>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Text</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <EnhancedColorPicker
-              selectedColor={selectedColor}
-              onColorChange={changeColor}
-            />
-
-            <div className="w-32">
-              <Slider
-                value={[selectedSize]}
-                min={1}
-                max={20}
-                step={1}
-                onValueChange={([value]) => changeSize(value)}
-              />
-            </div>
-
-            <SeparatorHorizontal className="mx-2 text-gray-300" />
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={undoDrawing} className="h-8 w-8">
-                  <Undo size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Undo</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={redoDrawing} className="h-8 w-8">
-                  <Redo size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Redo</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <SeparatorHorizontal className="mx-2 text-gray-300" />
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-8 w-8">
-                      <LayoutTemplate size={16} />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <WhiteboardTemplates 
-                      onSelectTemplate={handleTemplateSelect}
-                      onClose={() => setIsTemplateDialogOpen(false)}
-                    />
-                  </DialogContent>
-                </Dialog>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Templates</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Dialog open={isStickerPickerOpen} onOpenChange={setIsStickerPickerOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-8 w-8">
-                      <ImageIcon size={16} />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <StickerPicker 
-                      onSelect={handleStickerSelect} 
-                      onClose={() => setIsStickerPickerOpen(false)}
-                    />
-                  </DialogContent>
-                </Dialog>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Stickers</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <SeparatorHorizontal className="mx-2 text-gray-300" />
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleZoomIn} className="h-8 w-8">
-                  <Plus size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Zoom In</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleZoomOut} className="h-8 w-8">
-                  <Minus size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Zoom Out</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <SeparatorHorizontal className="mx-2 text-gray-300" />
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={clearCanvas} className="h-8 w-8">
-                  <Trash2 size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Clear</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleDownload} className="h-8 w-8">
-                  <Download size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Download</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleSave} className="h-8 w-8">
-                  <Save size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Save</p>
-              </TooltipContent>
-            </Tooltip>
-
+          </TooltipProvider>
+          
+          <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Toggle 
-                  pressed={selectedShape === 'rectangle'} 
-                  onPressedChange={() => setSelectedShape(s => s === 'rectangle' ? null : 'rectangle')}
+                  pressed={isTextToolActive} 
+                  onClick={handleTextToolToggle}
+                  size="sm"
+                  className="w-8 h-8 p-0 data-[state=on]:bg-indigo-100 data-[state=on]:text-indigo-700"
                 >
-                  <Square size={16} />
+                  <Type size={14} />
                 </Toggle>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Rectangle</p>
-              </TooltipContent>
+              <TooltipContent side="right">Text Tool</TooltipContent>
             </Tooltip>
-
+          </TooltipProvider>
+          
+          <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Toggle 
-                  pressed={selectedShape === 'circle'} 
-                  onPressedChange={() => setSelectedShape(s => s === 'circle' ? null : 'circle')}
+                  pressed={isFillActive} 
+                  onClick={handleFillToggle}
+                  size="sm"
+                  className="w-8 h-8 p-0 data-[state=on]:bg-indigo-100 data-[state=on]:text-indigo-700"
                 >
-                  <CircleIcon size={16} />
+                  <PaintBucket size={14} />
                 </Toggle>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Circle</p>
-              </TooltipContent>
+              <TooltipContent side="right">Fill Tool</TooltipContent>
             </Tooltip>
-
+          </TooltipProvider>
+          
+          <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Toggle 
-                  pressed={selectedShape === 'triangle'} 
-                  onPressedChange={() => setSelectedShape(s => s === 'triangle' ? null : 'triangle')}
+                  pressed={isShapeToolActive} 
+                  onClick={handleShapeToolToggle}
+                  size="sm"
+                  className="w-8 h-8 p-0 data-[state=on]:bg-indigo-100 data-[state=on]:text-indigo-700"
                 >
-                  <Triangle size={16} />
+                  <SeparatorHorizontal size={14} />
                 </Toggle>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Triangle</p>
-              </TooltipContent>
+              <TooltipContent side="right">Shapes</TooltipContent>
             </Tooltip>
-
+          </TooltipProvider>
+          
+          <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Toggle 
-                  pressed={selectedShape === 'line'} 
-                  onPressedChange={() => setSelectedShape(s => s === 'line' ? null : 'line')}
+                  pressed={isImageToolActive} 
+                  onClick={handleImageToolToggle}
+                  size="sm"
+                  className="w-8 h-8 p-0 data-[state=on]:bg-indigo-100 data-[state=on]:text-indigo-700"
                 >
-                  <LineIcon size={16} />
+                  <ImageIcon size={14} />
                 </Toggle>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Line</p>
-              </TooltipContent>
+              <TooltipContent side="right">Insert Image</TooltipContent>
             </Tooltip>
-
           </TooltipProvider>
         </div>
-      )}
-
-      <div className="flex-1 overflow-hidden relative">
-        <div 
-          className="absolute top-0 right-0 p-2 z-10"
-          style={{ transform: `scale(${scale})` }}
-        >
-          {onlineUsersWithoutSelf.map(user => (
-            <div key={user.id} className="flex items-center gap-1 mb-1 bg-white/80 rounded-full px-2 py-1 shadow-sm">
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={user.photoURL} alt={user.name} />
-                <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <span className="text-xs">{user.name}</span>
-            </div>
-          ))}
-        </div>
         
-        <div 
-          className="w-full h-full flex items-center justify-center bg-gray-100"
-          style={{ 
-            transform: `scale(${scale})`,
-            overflow: 'hidden'
-          }}
-        >
-          <canvas
-            ref={canvasRef}
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={endDrawing}
-            onMouseLeave={endDrawing}
-            className="bg-white shadow-md"
-            style={{
-              cursor: selectedTool === 'pen' ? 'crosshair' : 'default'
-            }}
+        <Popover>
+          <PopoverTrigger asChild>
+            <div className="absolute left-2 bottom-2 bg-white rounded-md shadow-sm overflow-hidden">
+              <div 
+                className="w-6 h-6 cursor-pointer" 
+                style={{ backgroundColor: selectedColor }}
+              ></div>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent side="top" className="w-auto p-2">
+            <div className="grid grid-cols-6 gap-1">
+              {[
+                '#000000', '#FF0000', '#00FF00', '#0000FF', 
+                '#FFFF00', '#00FFFF', '#FF00FF', '#FF9900',
+                '#9900FF', '#009900', '#990000', '#999999',
+                '#FFFFFF', '#CCCCCC', '#333333', '#666666',
+                '#996633', '#99CC33', '#3399CC', '#FF6666'
+              ].map(color => (
+                <div
+                  key={color}
+                  className="w-5 h-5 cursor-pointer border border-gray-300"
+                  style={{ backgroundColor: color }}
+                  onClick={() => changeColor(color)}
+                ></div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+        
+        <div className="absolute right-2 top-2 bg-white rounded-md shadow-sm overflow-hidden">
+          <Slider
+            className="w-24 h-8"
+            value={[selectedSize]}
+            min={1}
+            max={50}
+            step={1}
+            onValueChange={(value) => changeSize(value[0])}
           />
         </div>
+        
+        <canvas
+          ref={canvasRef}
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={endDrawing}
+          onMouseLeave={endDrawing}
+          className="border bg-white shadow-sm"
+          style={{
+            transform: `scale(${scale})`,
+            cursor: isEraserActive 
+              ? 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\'/><path d=\'M15 3h6v6\'/><path d=\'m10 14 11-11\'/></svg>"), auto'
+              : 'crosshair'
+          }}
+        />
       </div>
     </div>
   );

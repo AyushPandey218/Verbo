@@ -1,14 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Mic, PenTool, BarChart, Sticker, Smile } from 'lucide-react';
+import { Send, Mic, PenTool, BarChart, Image, Smile, PaperclipIcon, Clock } from 'lucide-react';
 import VoiceMessageRecorder from './VoiceMessageRecorder';
 import Poll, { PollData } from './Poll';
 import ActionToolbar from './ActionToolbar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from './ui/use-toast';
-import StickerPicker from './StickerPicker';
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -36,10 +35,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const [isPollOpen, setIsPollOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim() && !isSubmitting && !disabled) {
@@ -48,13 +46,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
       setMessage(''); // Clear input immediately for better UX
       
       try {
+        // Add a small delay to prevent rapid firing of multiple messages
         setTimeout(() => {
           onSend(currentMessage);
         }, 50);
       } catch (error) {
         console.error("Error sending message:", error);
+        // If there's an error, restore the message
         setMessage(currentMessage);
       } finally {
+        // Short delay to prevent double submissions
         setTimeout(() => {
           setIsSubmitting(false);
         }, 500);
@@ -66,16 +67,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
     if (onOpenWhiteboard) {
       onOpenWhiteboard();
     }
+    // Close other panels if open
     setIsRecording(false);
     setIsPollOpen(false);
   };
 
   const handlePollClick = () => {
     setIsPollOpen(true);
+    // Close other panels if open
     setIsRecording(false);
   };
 
   const handleVoiceMessageClick = () => {
+    // Only start recording if we're not already submitting or recording
     if (!isSubmitting && !disabled && !isRecording) {
       setIsRecording(true);
       setIsPollOpen(false);
@@ -93,6 +97,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         duration: 3000,
       });
       
+      // Add a small delay to prevent rapid firing of multiple messages
       setTimeout(() => {
         onSendVoice(blob, audioUrl);
       }, 50);
@@ -107,6 +112,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     } finally {
       setIsRecording(false);
       
+      // Short delay to prevent double submissions
       setTimeout(() => {
         setIsSubmitting(false);
       }, 500);
@@ -116,25 +122,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const insertEmoji = (emoji: string) => {
     setMessage(prev => prev + emoji);
     setIsEmojiPickerOpen(false);
+    // Focus the input after inserting emoji
     if (inputRef.current) {
       inputRef.current.focus();
     }
   };
 
-  const handleStickerSelect = (url: string, type: 'sticker' | 'gif') => {
-    if (onSend) {
-      onSend(`[${type}]${url}[/${type}]`);
-      setIsStickerPickerOpen(false);
-    }
-  };
-
-  const handleGifSelect = (gifUrl: string) => {
-    if (onSend) {
-      onSend(`[gif]${gifUrl}[/gif]`);
-      setIsStickerPickerOpen(false);
-    }
-  };
-
+  // Common emoji options
   const commonEmojis = ['😊', '👍', '❤️', '😂', '🙌', '🎉', '🔥', '👏', '😍', '🤔', '😮', '👋', '🙏', '✅', '⭐'];
   
   return (
@@ -173,59 +167,38 @@ const MessageInput: React.FC<MessageInputProps> = ({
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Type a message..."
-              className="pr-24 rounded-full h-11 border-1 border-indigo-100 focus-visible:ring-indigo-200 shadow-sm pl-4 pr-20"
+              className="pr-10 rounded-full h-11 border-1 border-indigo-100 focus-visible:ring-indigo-200 shadow-sm pl-4"
               disabled={disabled || isSubmitting}
             />
             
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              <Popover open={isStickerPickerOpen} onOpenChange={setIsStickerPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-muted-foreground hover:text-indigo-600"
-                  >
-                    <Sticker size={18} />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 p-0" align="end">
-                  <StickerPicker 
-                    onSelect={handleStickerSelect}
-                    onClose={() => setIsStickerPickerOpen(false)}
-                  />
-                </PopoverContent>
-              </Popover>
-
-              <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-muted-foreground hover:text-indigo-600"
-                  >
-                    <Smile size={18} />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-2 shadow-lg">
-                  <div className="text-xs font-medium text-muted-foreground mb-2">Quick Emoji</div>
-                  <div className="grid grid-cols-5 gap-1">
-                    {commonEmojis.map((emoji) => (
-                      <Button
-                        key={emoji}
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={() => insertEmoji(emoji)}
-                      >
-                        {emoji}
-                      </Button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
+            <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-indigo-600"
+                >
+                  <Smile size={18} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2 shadow-lg">
+                <div className="text-xs font-medium text-muted-foreground mb-2">Quick Emoji</div>
+                <div className="grid grid-cols-5 gap-1">
+                  {commonEmojis.map((emoji) => (
+                    <Button
+                      key={emoji}
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => insertEmoji(emoji)}
+                    >
+                      {emoji}
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           
           <div className="flex gap-1.5">
@@ -284,17 +257,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
               
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    type="submit"
+                  <Button 
+                    type="submit" 
                     size="icon"
-                    variant="outline"
-                    disabled={!message.trim() || disabled || isSubmitting}
-                    className="rounded-full h-10 w-10 bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
+                    disabled={!message.trim() || isSubmitting || disabled} 
+                    className="rounded-full h-10 w-10 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 transition-all shadow-sm"
                   >
-                    <Send size={18} />
+                    <Send size={16} className="text-white" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">Send Message</TooltipContent>
+                <TooltipContent side="top">Send</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>

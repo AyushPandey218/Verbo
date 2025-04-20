@@ -490,6 +490,61 @@ class FirebaseService {
     }
   }
 
+  public updateUserActivity(user: User): void {
+    if (!this.isInitialized() || !user || !user.id) {
+      return;
+    }
+    
+    try {
+      console.log(`Updating activity for user ${user.id}`);
+      
+      // Update user's lastActive timestamp
+      const userRef = ref(this.db, `users/${user.id}`);
+      get(userRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          const userData = snapshot.val();
+          set(userRef, {
+            ...userData,
+            lastActive: Date.now(),
+            online: true
+          });
+        } else {
+          // User doesn't exist yet, create a new entry
+          set(userRef, {
+            ...user,
+            lastActive: Date.now(),
+            online: true
+          });
+        }
+      }).catch(error => {
+        console.error(`Error updating user activity: ${error}`);
+      });
+      
+      // Also update the user in all active rooms
+      this.activeRooms.forEach(roomId => {
+        const roomUserRef = ref(this.db, `rooms/${roomId}/users/${user.id}`);
+        get(roomUserRef).then((snapshot) => {
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            set(roomUserRef, {
+              ...userData,
+              lastActive: Date.now(),
+              online: true
+            });
+          }
+        }).catch(error => {
+          console.error(`Error updating user in room: ${error}`);
+        });
+      });
+      
+      // Store current user in localStorage for heartbeat recovery
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      
+    } catch (error) {
+      console.error("Error updating user activity:", error);
+    }
+  }
+
   private removeListener(listenerId: string): void {
     if (this.listeners.has(listenerId)) {
       const unsubscribe = this.listeners.get(listenerId);

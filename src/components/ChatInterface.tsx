@@ -31,6 +31,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { isPrivateRoom, extractPrivateRoomCode } from '@/utils/config';
 import MessageInput from './MessageInput';
 import Whiteboard from './Whiteboard';
+import SocketService from '@/utils/socketService';
 
 interface ChatInterfaceProps {
   user: User;
@@ -150,13 +151,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const groupedMessages = useMemo(() => {
     const groups: { [key: string]: any[] } = {};
-    messages.forEach(message => {
-      const date = new Date(message.timestamp).toLocaleDateString();
-      if (!groups[date]) {
-        groups[date] = [];
-      }
-      groups[date].push(message);
-    });
+    if (Array.isArray(messages)) {
+      messages.forEach(message => {
+        const date = new Date(message.timestamp).toLocaleDateString();
+        if (!groups[date]) {
+          groups[date] = [];
+        }
+        groups[date].push(message);
+      });
+    }
     return groups;
   }, [messages]);
 
@@ -191,6 +194,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (user) {
+      const socketService = SocketService.getInstance();
+      socketService.updateCurrentUser(user);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    console.log("ChatInterface received online users:", onlineUsers.length);
+    if (onlineUsers.length > 0) {
+      console.log("Online user names:", onlineUsers.map(u => u.name).join(', '));
+    }
+  }, [onlineUsers]);
+
   return (
     <div className="h-[100dvh] flex flex-col bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 overflow-hidden">
       <Card className="flex-1 flex flex-col overflow-hidden rounded-none shadow-none border-none h-full">
@@ -215,7 +232,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <div className="font-semibold text-lg leading-tight flex items-center gap-2">
                   {matchedUser ? matchedUser.name : roomName}
                   {connected && (
-                    <Badge className="ml-2 bg-green-50 text-green-600 border-green-200 font-normal text-xs">
+                    <Badge variant="outline" className="ml-2 bg-green-50 text-green-600 border-green-200 font-normal text-xs">
                       Online
                     </Badge>
                   )}
@@ -402,4 +419,4 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   );
 };
 
-export default ChatInterface;
+export default memo(ChatInterface);

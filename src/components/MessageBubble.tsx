@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -10,7 +9,6 @@ import PollMessage from './PollMessage';
 import { Volume2, PlayCircle, PauseCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import MessageInsights from './MessageInsights';
-import MessageEmbed from './MessageEmbed';
 
 interface MessageBubbleProps {
   message: Message;
@@ -31,8 +29,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
   const isSender = message.sender.id === user.id;
   
   const isPollMessage = message.content?.startsWith('__POLL__:');
-  const isGifMessage = message.content?.startsWith('[gif]') && message.content?.endsWith('[/gif]');
-  const isStickerMessage = message.content?.startsWith('[sticker]') && message.content?.endsWith('[/sticker]');
   
   let pollData = null;
   if (isPollMessage && onVotePoll) {
@@ -118,12 +114,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
       <div className="flex-shrink-0 mt-1">
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger>
+            <TooltipTrigger asChild>
               <Avatar className={`h-8 w-8 border transition-all ${isSender ? 'border-violet-200' : 'border-gray-200'}`}>
-                <AvatarImage src={message.sender.photoURL} alt={message.sender.name} />
-                <AvatarFallback className={isSender ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white' : 'bg-gray-200'}>
-                  {message.sender.name.charAt(0).toUpperCase()}
-                </AvatarFallback>
+                {message.sender.photoURL ? (
+                  <AvatarImage src={message.sender.photoURL} alt={message.sender.name} />
+                ) : (
+                  <AvatarFallback className={isSender ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white' : 'bg-gray-200'}>
+                    {message.sender.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                )}
               </Avatar>
             </TooltipTrigger>
             <TooltipContent side={isSender ? "left" : "right"} align="center" className="bg-gray-900 text-white text-xs">
@@ -151,10 +150,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
                 }
               }}
             />
-          </div>
-        ) : isGifMessage || isStickerMessage ? (
-          <div className="inline-block">
-            <MessageEmbed url={message.content} />
           </div>
         ) : message.isVoiceMessage ? (
           <div className={`rounded-2xl p-3 ${
