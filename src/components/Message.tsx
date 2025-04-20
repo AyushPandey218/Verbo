@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
@@ -104,8 +103,9 @@ const Message: React.FC<MessageProps> = ({
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
+  // Improved GIF detection with better regex handling
   const gifRegex = /^\[GIF\]\((.*?)\)$/;
-  const gifMatch = message.content.match(gifRegex);
+  const gifMatch = typeof message.content === 'string' ? message.content.match(gifRegex) : null;
   const isGif = !!gifMatch;
   const gifUrl = isGif ? gifMatch[1] : null;
 
