@@ -1,34 +1,38 @@
-
-export const MESSAGE_CATEGORIES = [
-  'General', 
-  'Question', 
-  'Personal', 
-  'Professional', 
-  'Technical', 
-  'Emotional',
-  'Greeting',
-  'Profanity'
-] as const;
-
-export type MessageCategory = typeof MESSAGE_CATEGORIES[number];
+export type MessageCategory = 'General' | 'Question' | 'Greeting' | 'Request' | 'Response';
 
 export function categorizeMessage(message: string): MessageCategory {
-  const lowercaseMessage = message.toLowerCase();
+  if (!message) return 'General';
   
-  // Check for profanity/swear words
-  if (/\b(fuck|shit|damn|ass|bitch|crap|hell|wtf|fk|fck|fuk|sht|bs)\b/.test(lowercaseMessage)) {
-    return 'Profanity';
+  const lowerMessage = message.toLowerCase();
+  
+  // Check for questions
+  if (message.includes('?')) {
+    return 'Question';
   }
   
-  // Check for greetings first
-  if (/\b(hello|hi|hey|greetings|howdy|hola|good morning|good afternoon|good evening)\b/.test(lowercaseMessage) && message.length < 30) {
-    return 'Greeting';
+  // Check for greetings
+  const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 'welcome', 'greetings'];
+  for (const greeting of greetings) {
+    if (lowerMessage.includes(greeting)) {
+      return 'Greeting';
+    }
   }
   
-  if (/\?/.test(lowercaseMessage)) return 'Question';
-  if (/work|job|project|meeting/.test(lowercaseMessage)) return 'Professional';
-  if (/code|tech|programming|algorithm/.test(lowercaseMessage)) return 'Technical';
-  if (/feeling|emotion|how are you/.test(lowercaseMessage)) return 'Emotional';
+  // Check for requests
+  const requestPhrases = ['can you', 'could you', 'please', 'would you', 'help me', 'how to', 'need to'];
+  for (const phrase of requestPhrases) {
+    if (lowerMessage.includes(phrase)) {
+      return 'Request';
+    }
+  }
+  
+  // Check for responses
+  const responsePhrases = ['thank', 'thanks', 'got it', 'okay', 'ok', 'sure', 'yes', 'no', 'alright'];
+  for (const phrase of responsePhrases) {
+    if (lowerMessage.includes(phrase)) {
+      return 'Response';
+    }
+  }
   
   return 'General';
 }

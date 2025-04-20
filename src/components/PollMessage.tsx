@@ -1,36 +1,49 @@
-
-import React, { memo } from 'react';
+import React from 'react';
 import { User } from '@/utils/messageUtils';
-import Poll, { PollData } from './Poll';
+
+export interface PollData {
+  id: string;
+  question: string;
+  options: { id: string; text: string; votes: string[] }[];
+  createdBy: string;
+  createdAt: number;
+  roomId: string;
+}
 
 interface PollMessageProps {
   pollData: PollData;
   currentUser: User;
   onVote: (pollId: string, optionId: string) => void;
+  isCreating?: boolean;
+  onCreatePoll?: (pollData: Omit<PollData, 'id' | 'createdAt'>) => void;
+  onClose?: () => void;
 }
 
-const PollMessage: React.FC<PollMessageProps> = ({
-  pollData,
-  currentUser,
-  onVote
+const PollMessage: React.FC<PollMessageProps> = ({ 
+  pollData, 
+  currentUser, 
+  onVote,
+  isCreating = false,
+  onCreatePoll,
+  onClose
 }) => {
-  // Add explicit logging to trace the vote path
-  const handleVote = (pollId: string, optionId: string) => {
-    console.log("PollMessage: handling vote for poll", pollId, "option", optionId);
-    // Ensure the vote gets passed up correctly
-    onVote(pollId, optionId);
-  };
-
+  // Simple placeholder implementation
   return (
-    <div className="w-full max-w-sm">
-      <Poll 
-        pollData={pollData}
-        currentUser={currentUser}
-        onVote={handleVote}
-      />
+    <div className="p-3">
+      <h3 className="font-medium text-sm">{pollData.question || "Poll"}</h3>
+      <div className="mt-2 space-y-2">
+        {pollData.options.map(option => (
+          <button 
+            key={option.id}
+            className="w-full text-left p-2 border rounded-md hover:bg-gray-50 text-sm"
+            onClick={() => onVote(pollData.id, option.id)}
+          >
+            {option.text}
+          </button>
+        ))}
+      </div>
     </div>
   );
 };
 
-// Use memo to prevent unnecessary re-renders
-export default memo(PollMessage);
+export default PollMessage;

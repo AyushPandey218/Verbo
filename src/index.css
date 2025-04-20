@@ -13,8 +13,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 263 70% 50%;
-    --primary-foreground: 263 40% 98%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -22,7 +22,7 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 263 70% 97%;
+    --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 0 84.2% 60.2%;
@@ -30,9 +30,39 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 263 70% 50%;
+    --ring: 222.2 84% 4.9%;
 
-    --radius: 1rem;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
 
@@ -40,238 +70,94 @@
   * {
     @apply border-border;
   }
-
   body {
-    @apply bg-background text-foreground font-sans overflow-hidden antialiased;
-    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+    @apply bg-background text-foreground;
   }
 
-  /* Custom scrollbar for the app */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-purple-200 rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-purple-300;
-  }
-  
-  /* Chat bubble shapes */
-  .chat-bubble-user {
-    @apply bg-gradient-to-br from-violet-400/80 to-purple-400/80 text-white rounded-[1.25rem] rounded-br-md;
-  }
-  
-  .chat-bubble-other {
-    @apply bg-gray-50/90 border border-gray-100/50 rounded-[1.25rem] rounded-bl-md shadow-sm;
-  }
-  
-  /* Glass morphism */
-  .glass {
-    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
-  }
-  
-  .glass-dark {
-    @apply bg-black/5 backdrop-blur-md border border-black/10;
-  }
-
-  /* Hide scrollbar but allow scrolling */
-  .hide-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-  }
-
+  /* Custom scrollbar styles */
   .hide-scrollbar::-webkit-scrollbar {
-    width: 4px;
+    width: 8px;
   }
-
+  
   .hide-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
+    @apply bg-transparent;
   }
-
+  
   .hide-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgba(155, 135, 245, 0.2);
-    border-radius: 20px;
+    @apply bg-indigo-200/50 rounded-full;
   }
-
-  .hide-scrollbar:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(155, 135, 245, 0.5);
+  
+  .hide-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-indigo-300/50;
   }
 }
 
 @layer utilities {
-  .animation-delay-200 {
-    animation-delay: 200ms;
+  .chat-bubble-user {
+    @apply bg-gradient-to-br from-violet-500 to-purple-600 text-white;
   }
   
-  .animation-delay-400 {
-    animation-delay: 400ms;
+  .chat-bubble-other {
+    @apply bg-white border border-gray-100;
   }
   
-  .text-gradient {
-    @apply bg-gradient-to-r from-violet-600 to-indigo-600 text-transparent bg-clip-text;
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out forwards;
+  }
+  
+  .animate-bubble-in {
+    animation: bubbleIn 0.25s ease-out forwards;
+  }
+  
+  .animate-bounce-slow {
+    animation: bounce 2s infinite;
   }
 
-  /* Full height considering viewport */
-  .h-dynamic-screen {
-    height: 100vh; /* fallback */
-    height: 100dvh;
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
   }
-
-  .max-h-dynamic-screen {
-    max-height: 100vh; /* fallback */
-    max-height: 100dvh;
-  }
-}
-
-/* Button gradient effect */
-.btn-gradient {
-  @apply relative overflow-hidden;
-}
-
-.btn-gradient::before {
-  content: '';
-  @apply absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 opacity-0 transition-opacity duration-300;
-}
-
-.btn-gradient:hover::before {
-  @apply opacity-100;
-}
-
-.btn-gradient span {
-  @apply relative z-10;
-}
-
-/* Animations */
-@keyframes float {
-  0% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-  100% {
-    transform: translateY(0px);
+  
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/50;
   }
 }
 
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes pulse-border {
-  0% {
-    box-shadow: 0 0 0 0 rgba(129, 90, 255, 0.4);
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  70% {
-    box-shadow: 0 0 0 10px rgba(129, 90, 255, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(129, 90, 255, 0);
-  }
-}
-
-.pulse-border {
-  animation: pulse-border 2s infinite;
-}
-
-/* Voice message animations */
-@keyframes sound-wave {
-  0% {
-    height: 3px;
-  }
-  50% {
-    height: 12px;
-  }
-  100% {
-    height: 3px;
-  }
-}
-
-.sound-wave div {
-  animation: sound-wave 0.8s ease-in-out infinite;
-}
-
-.sound-wave div:nth-child(2) {
-  animation-delay: 0.1s;
-}
-.sound-wave div:nth-child(3) {
-  animation-delay: 0.2s;
-}
-.sound-wave div:nth-child(4) {
-  animation-delay: 0.3s;
-}
-.sound-wave div:nth-child(5) {
-  animation-delay: 0.4s;
-}
-
-@keyframes pulse-light {
-  0% {
+  to {
     opacity: 1;
+    transform: translateY(0);
   }
-  50% {
-    opacity: 0.8;
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
   }
-  100% {
+  to {
     opacity: 1;
+    transform: scale(1);
   }
 }
 
-.animate-pulse-light {
-  animation: pulse-light 1.5s ease-in-out infinite;
-}
-
-/* Slow bounce animation */
-@keyframes bounce-slow {
+@keyframes bounce {
   0%, 100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-10px);
+    transform: translateY(-5px);
   }
 }
 
-.animate-bounce-slow {
-  animation: bounce-slow 2s ease-in-out infinite;
-}
-
-/* Fade-in animation */
-@keyframes fade-in {
-  0% {
+@keyframes fadeIn {
+  from {
     opacity: 0;
-    transform: translateY(8px);
   }
-  100% {
+  to {
     opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out;
-}
-
-/* Media queries for better responsiveness */
-@media (max-width: 640px) {
-  .chat-bubble-user, .chat-bubble-other {
-    max-width: 85vw;
-  }
-}
-
-/* Dark mode support (if needed in the future) */
-@media (prefers-color-scheme: dark) {
-  .hide-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgba(155, 135, 245, 0.3);
-  }
-  
-  .hide-scrollbar:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(155, 135, 245, 0.6);
   }
 }

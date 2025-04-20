@@ -29,6 +29,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
   const isSender = message.sender.id === user.id;
   
   const isPollMessage = message.content?.startsWith('__POLL__:');
+  const isGifMessage = typeof message.content === 'string' && message.content.startsWith('[GIF](') && message.content.endsWith(')');
   
   let pollData = null;
   if (isPollMessage && onVotePoll) {
@@ -40,6 +41,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
       console.error('Error parsing poll data:', e);
     }
   }
+  
+  // Extract GIF URL if it's a GIF message
+  const gifUrl = isGifMessage 
+    ? message.content.substring(5, message.content.length - 1)
+    : null;
 
   useEffect(() => {
     if (message.isVoiceMessage && message.voiceUrl) {
@@ -204,19 +210,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
               </div>
             </div>
           </div>
-        ) : message.content.startsWith('[GIF](') && message.content.endsWith(')') ? (
-          <div className={`rounded-2xl p-2 ${
+        ) : isGifMessage && gifUrl ? (
+          <div className={`rounded-2xl overflow-hidden ${
             isSender 
-              ? 'chat-bubble-user shadow-sm shadow-violet-200' 
-              : 'chat-bubble-other'
-          } transition-all max-w-[240px]`}>
+              ? 'chat-bubble-user shadow-sm' 
+              : 'chat-bubble-other shadow-sm'
+          } max-w-[240px] p-0`}>
             <img 
-              src={message.content.substring(5, message.content.length - 1)} 
+              src={gifUrl} 
               alt="GIF" 
-              className="rounded-lg max-w-full h-auto"
+              className="w-full h-auto max-w-full rounded-lg"
               loading="lazy"
               onError={(e) => {
-                console.error("Failed to load GIF:", message.content);
+                console.error("Failed to load GIF:", gifUrl);
                 const target = e.target as HTMLImageElement;
                 target.src = "https://via.placeholder.com/240x135?text=GIF+Error";
               }}
