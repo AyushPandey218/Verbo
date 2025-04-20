@@ -10,7 +10,7 @@ import {
 import MessageReactions from './MessageReactions';
 import { Volume2, Play, Pause } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { isGifMessage } from '@/utils/messageCategories';
+import { isGifMessage, extractGifUrl } from '@/utils/messageCategories';
 
 interface MessageProps {
   message: MessageType;
@@ -105,7 +105,7 @@ const Message: React.FC<MessageProps> = ({
   };
 
   const isGif = isGifMessage(message.content);
-  const gifUrl = isGif ? message.content.substring(5, message.content.length - 1) : null;
+  const gifUrl = isGif ? extractGifUrl(message.content) : null;
 
   return (
     <div 
@@ -137,7 +137,7 @@ const Message: React.FC<MessageProps> = ({
           {isGif ? (
             <div className="gif-container">
               <img 
-                src={gifUrl} 
+                src={gifUrl || ''} 
                 alt="GIF" 
                 className="max-w-[240px] max-h-[180px] rounded-lg object-contain"
                 loading="lazy"

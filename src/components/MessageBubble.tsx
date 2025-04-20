@@ -9,7 +9,7 @@ import PollMessage from './PollMessage';
 import { Volume2, PlayCircle, PauseCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import MessageInsights from './MessageInsights';
-import { isGifMessage } from '@/utils/messageCategories';
+import { isGifMessage, extractGifUrl } from '@/utils/messageCategories';
 
 interface MessageBubbleProps {
   message: Message;
@@ -43,9 +43,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
     }
   }
   
-  const gifUrl = isGif 
-    ? message.content.substring(5, message.content.length - 1)
-    : null;
+  const gifUrl = isGif ? extractGifUrl(message.content) : null;
 
   useEffect(() => {
     if (message.isVoiceMessage && message.voiceUrl) {
@@ -110,6 +108,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
+  
+  // Debug logs to help troubleshoot GIF rendering
+  useEffect(() => {
+    if (isGif) {
+      console.log("GIF message detected in MessageBubble:", message.content);
+      console.log("Extracted GIF URL:", gifUrl);
+    }
+  }, [isGif, message.content, gifUrl]);
   
   return (
     <div 

@@ -44,14 +44,22 @@ export function categorizeMessage(message: string): MessageCategory {
 
 // Helper function to check if a message contains a GIF
 export function isGifMessage(message: string): boolean {
-  return typeof message === 'string' && message.startsWith('[GIF](') && message.endsWith(')');
+  if (!message || typeof message !== 'string') return false;
+  return message.startsWith('[GIF](') && message.endsWith(')');
 }
 
 // Helper function to extract GIF URL from a message
 export function extractGifUrl(message: string): string | null {
   if (isGifMessage(message)) {
-    return message.substring(5, message.length - 1);
+    try {
+      // Extract URL between [GIF]( and )
+      return message.substring(5, message.length - 1);
+    } catch (error) {
+      console.error("Error extracting GIF URL:", error);
+      return null;
+    }
   }
   return null;
 }
+
 
