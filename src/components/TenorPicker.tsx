@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { GifIcon } from 'lucide-react';
+import { GiftIcon } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -125,7 +125,7 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
           size="icon"
           className="rounded-full h-10 w-10 bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
         >
-          <GifIcon size={18} />
+          <GiftIcon size={18} />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">

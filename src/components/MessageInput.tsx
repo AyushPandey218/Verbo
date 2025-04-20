@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Mic, PenTool, BarChart, Smile, Image, Gif } from 'lucide-react';
+import { Send, Mic, PenTool, BarChart, Smile, Image, Gift } from 'lucide-react';
 import VoiceMessageRecorder from './VoiceMessageRecorder';
 import Poll, { PollData } from './Poll';
 import ActionToolbar from './ActionToolbar';
