@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { TENOR_API_KEY, TENOR_API_URL } from '@/utils/config';
+import { GIF_API_KEY, GIF_API_URL } from '@/utils/config';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
@@ -29,27 +29,27 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
     setError(null);
     
     try {
-      const searchEndpoint = `${TENOR_API_URL}/search?q=${encodeURIComponent(term)}&key=${TENOR_API_KEY}&client_key=verbo_chat&limit=20`;
+      const searchEndpoint = `${GIF_API_URL}/search?api_key=${GIF_API_KEY}&q=${encodeURIComponent(term)}&limit=20&rating=pg-13`;
       console.log('Searching GIFs with endpoint:', searchEndpoint);
       
       const response = await fetch(searchEndpoint);
       
       if (!response.ok) {
-        throw new Error(`Tenor API error: ${response.status} ${response.statusText}`);
+        throw new Error(`GIPHY API error: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log('Tenor search response:', data);
+      console.log('GIPHY search response:', data);
       
-      if (data.results && Array.isArray(data.results)) {
-        setGifs(data.results);
+      if (data.data && Array.isArray(data.data)) {
+        setGifs(data.data);
       } else {
-        console.error('Invalid Tenor API response format:', data);
-        setError('Invalid response from Tenor API');
+        console.error('Invalid GIPHY API response format:', data);
+        setError('Invalid response from GIPHY API');
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to get GIFs from Tenor API",
+          description: "Failed to get GIFs from GIPHY API",
         });
         setGifs([]);
       }
@@ -72,23 +72,23 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
     setError(null);
     
     try {
-      const trendingEndpoint = `${TENOR_API_URL}/trending?key=${TENOR_API_KEY}&client_key=verbo_chat&limit=20`;
+      const trendingEndpoint = `${GIF_API_URL}/trending?api_key=${GIF_API_KEY}&limit=20&rating=pg-13`;
       console.log('Fetching trending GIFs with endpoint:', trendingEndpoint);
       
       const response = await fetch(trendingEndpoint);
       
       if (!response.ok) {
-        throw new Error(`Tenor API error: ${response.status} ${response.statusText}`);
+        throw new Error(`GIPHY API error: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log('Tenor trending response:', data);
+      console.log('GIPHY trending response:', data);
       
-      if (data.results && Array.isArray(data.results)) {
-        setGifs(data.results);
+      if (data.data && Array.isArray(data.data)) {
+        setGifs(data.data);
       } else {
-        console.error('Invalid Tenor API response format:', data);
-        setError('Invalid response from Tenor API');
+        console.error('Invalid GIPHY API response format:', data);
+        setError('Invalid response from GIPHY API');
         toast({
           variant: "destructive",
           title: "Error",
@@ -127,15 +127,15 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
   }, [searchTerm, searchGifs, isOpen]);
 
   const handleSelectGif = (gif: any) => {
-    // Get the GIF URL from the media_formats object
+    // Get the GIF URL from GIPHY's data structure
     let gifUrl = null;
     
-    if (gif.media_formats && gif.media_formats.gif && gif.media_formats.gif.url) {
-      gifUrl = gif.media_formats.gif.url;
-    } else if (gif.media_formats && gif.media_formats.mediumgif && gif.media_formats.mediumgif.url) {
-      gifUrl = gif.media_formats.mediumgif.url;
-    } else if (gif.url) {
-      gifUrl = gif.url;
+    if (gif.images && gif.images.fixed_height) {
+      gifUrl = gif.images.fixed_height.url;
+    } else if (gif.images && gif.images.original) {
+      gifUrl = gif.images.original.url;
+    } else if (gif.images && gif.images.downsized) {
+      gifUrl = gif.images.downsized.url;
     }
     
     if (!gifUrl) {
@@ -196,10 +196,10 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
                   onClick={() => handleSelectGif(gif)}
                   className="aspect-video rounded overflow-hidden hover:opacity-90 transition-opacity"
                 >
-                  {gif.media_formats && gif.media_formats.tinygif && gif.media_formats.tinygif.url ? (
+                  {gif.images && gif.images.fixed_width_small ? (
                     <img
-                      src={gif.media_formats.tinygif.url}
-                      alt={gif.content_description || "GIF"}
+                      src={gif.images.fixed_width_small.url}
+                      alt={gif.title || "GIF"}
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
@@ -219,4 +219,3 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
 };
 
 export default TenorPicker;
-
