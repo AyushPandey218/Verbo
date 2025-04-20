@@ -8,6 +8,7 @@ import ActionToolbar from './ActionToolbar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from './ui/use-toast';
+import TenorPicker from './TenorPicker';
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -116,6 +117,26 @@ const MessageInput: React.FC<MessageInputProps> = ({
       setTimeout(() => {
         setIsSubmitting(false);
       }, 500);
+    }
+  };
+
+  const handleSendGif = (gifUrl: string) => {
+    if (!isSubmitting && !disabled) {
+      setIsSubmitting(true);
+      
+      try {
+        // Add a small delay to prevent rapid firing of multiple messages
+        setTimeout(() => {
+          onSend(`[GIF](${gifUrl})`);
+        }, 50);
+      } catch (error) {
+        console.error("Error sending GIF:", error);
+      } finally {
+        // Short delay to prevent double submissions
+        setTimeout(() => {
+          setIsSubmitting(false);
+        }, 500);
+      }
     }
   };
 
@@ -254,6 +275,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 </TooltipTrigger>
                 <TooltipContent side="top">Voice Message</TooltipContent>
               </Tooltip>
+              
+              <TenorPicker onSelect={handleSendGif} />
               
               <Tooltip>
                 <TooltipTrigger asChild>
