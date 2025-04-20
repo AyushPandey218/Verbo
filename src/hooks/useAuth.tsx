@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { LOGOUT_STORAGE_CLEANUP_ITEMS, THOROUGH_LOGOUT_CLEANUP } from '@/utils/config';
 
 interface AuthContextType {
-  setUser(newUser: User): unknown;
   user: User | null;
   loading: boolean;
   error: string | null;
@@ -173,7 +172,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           online: true, // Explicitly set online to true
           lastActive: Date.now() // Add timestamp for when user was last active
           ,
-          inRandomChat: undefined,
           isGuest: false
         };
         
@@ -240,7 +238,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       photoURL: 'https://ui-avatars.com/api/?name=Test+User&background=random',
       online: true,
       lastActive: Date.now(),
-      inRandomChat: undefined,
       isGuest: false
     };
     
@@ -252,7 +249,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(false);
     console.log("Created mock Google user for testing");
   };
-
   const signOut = async (): Promise<void> => {
     try {
       setLoading(true);
@@ -280,7 +276,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, error, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, error, signIn, signOut }}>
       {children}
       {/* Hidden but styled fallback Google sign-in button */}
       <div 
@@ -294,6 +290,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     </AuthContext.Provider>
   );
 };
+
 // Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);

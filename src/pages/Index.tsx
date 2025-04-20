@@ -1,476 +1,469 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { Avatar } from '@/components/ui/avatar';
-import { AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import SocketService from '@/utils/socketService';
-import JoinRoom from '@/components/JoinRoom';
+import { useAuth } from '@/hooks/useAuth';
+import { useSocket } from '@/hooks/useSocket';
 import ChatInterface from '@/components/ChatInterface';
+import JoinRoom from '@/components/JoinRoom';
 import GuestSignIn from '@/components/GuestSignIn';
-import { useToast } from '@/components/ui/use-toast';
-import { 
-  generateId, 
-  Message, 
-  User, 
-  Room, 
-  extractPrivateRoomCode,
-  isPrivateRoom
-} from '@/utils/messageUtils';
-import { LOGOUT_STORAGE_CLEANUP_ITEMS } from '@/utils/config';
+import { User, generateId } from '@/utils/messageUtils';import { useToast } from '@/components/ui/use-toast';
+import { PollData } from '@/components/Poll';
+import { DEBUG_CONNECTION_STATUS, ROOM_PREFIXES, extractPrivateRoomCode, isPrivateRoom } from '@/utils/config';
 
-export default function Index() {
-  const { user, signOut } = useAuth();
-  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
-  const [privateRoomCode, setPrivateRoomCode] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
-  const [matchedUser, setMatchedUser] = useState<User | null>(null);
-  const [isRandomChat, setIsRandomChat] = useState(false);
-  const [groups, setGroups] = useState<Room[]>([]);
-  const [friends, setFriends] = useState<User[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [reconnecting, setReconnecting] = useState(false);
-  const [connError, setConnError] = useState<string | null>(null);
-  const [whiteboardData, setWhiteboardData] = useState<string | undefined>(undefined);
-  const socketRef = useRef<SocketService | null>(null);
+const Index = () => {
+  const { user, loading, error: authError, signIn, signOut } = useAuth();
+  const [guestUser, setGuestUser] = useState<User | null>(null);
+  const currentUser = user || guestUser;
   const { toast } = useToast();
-  const isAuthenticated = !!user;
+  
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [friends, setFriends] = useState<User[]>([]);
+  const [localMessages, setLocalMessages] = useState<any[]>([]);
+  
+  const { 
+    messages, 
+    onlineUsers, 
+    joinRoom, 
+    leaveRoom, 
+    sendMessage, 
+    currentRoom: socketRoom,
+    addReaction,
+    sendWhiteboardData,
+    whiteboardData,
+    sendPoll,
+    votePoll,
+    isWaitingForMatch,
+    matchedUser,
+    connected,
+    reconnecting,
+    error: socketError
+  } = useSocket(currentUser);
 
   useEffect(() => {
-    if (user) {
-      console.log("User authenticated, connecting to socket service");
-      socketRef.current = SocketService.getInstance();
-      socketRef.current.connect();
-      socketRef.current.updateCurrentUser(user);
-      socketRef.current.loginUser(user);
+    if (socketRoom) {
+      setCurrentRoom(socketRoom);
+    }
+  }, [socketRoom]);
 
-      // Set up socket event listeners
-      setupSocketListeners();
-      
-      // Track connection status
-      const checkConnection = () => {
-        if (socketRef.current) {
-          const isConnected = socketRef.current.isConnected();
-          setConnected(isConnected);
-        }
-      };
-      
-      // Check connection immediately and then periodically
-      checkConnection();
-      const intervalId = setInterval(checkConnection, 5000);
-      
-      return () => {
-        clearInterval(intervalId);
-        if (socketRef.current) {
-          // Leave room if in one
-          if (currentRoom) {
-            socketRef.current.leaveRoom(currentRoom);
+  useEffect(() => {
+    if (DEBUG_CONNECTION_STATUS) {
+      console.log(`Connection status: ${connected ? 'Connected' : 'Disconnected'}`);
+      console.log(`Reconnecting: ${reconnecting ? 'Yes' : 'No'}`);
+      console.log(`Error: ${socketError || 'None'}`);
+      console.log(`Online users: ${onlineUsers.length}`);
+    }
+  }, [connected, reconnecting, socketError, onlineUsers.length]);
+
+  useEffect(() => {
+    if (!user) {
+      const storedUser = localStorage.getItem('chatUser');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          if (parsedUser && parsedUser.id && parsedUser.id.startsWith('guest-')) {
+            console.log("Found stored guest user:", parsedUser);
+            const updatedGuestUser = {
+              ...parsedUser,
+              online: true
+            };
+            setGuestUser(updatedGuestUser);
           }
-          
-          // Remove all listeners and disconnect
-          socketRef.current.off('message');
-          socketRef.current.off('userList');
-          socketRef.current.off('room_users');
-          socketRef.current.off('room_history');
-          socketRef.current.off('random_match_found');
-          socketRef.current.off('random_match_ended');
-          socketRef.current.off('new_whiteboard_data');
-          socketRef.current.disconnect();
+        } catch (e) {
+          console.error("Error parsing stored guest user:", e);
+          localStorage.removeItem('chatUser');
         }
-      };
+      }
     }
   }, [user]);
 
-  const setupSocketListeners = () => {
-    if (!socketRef.current) return;
-    
-    // Listen for chat messages
-    socketRef.current.on('message', (message) => {
-      console.log("Received message:", message);
-      if (message.room === currentRoom) {
-        setMessages(prev => [...prev, message]);
-      }
-    });
-    
-    // Listen for user list updates
-    socketRef.current.on('userList', (users) => {
-      console.log("User list updated:", users);
-      setOnlineUsers(users);
-    });
-    
-    // Listen for room user updates
-    socketRef.current.on('room_users', (users) => {
-      console.log("Room users updated:", users);
-      setOnlineUsers(users);
-    });
-    
-    // Listen for room history
-    socketRef.current.on('room_history', (history) => {
-      console.log("Room history received:", history?.length || 0);
-      setMessages(history || []);
-    });
-    
-    // Listen for random match found
-    socketRef.current.on('random_match_found', (data) => {
-      console.log("Random match found:", data);
-      if (data.matchedUser) {
-        setMatchedUser(data.matchedUser);
-        toast({
-          title: 'Match Found!',
-          description: `You've been matched with ${data.matchedUser.name}`,
-          duration: 5000,
-        });
-      }
-    });
-    
-    // Listen for random match ended
-    socketRef.current.on('random_match_ended', () => {
-      console.log("Random match ended");
-      setMatchedUser(null);
+  useEffect(() => {
+    if (currentUser) {
       setCurrentRoom(null);
-      setIsRandomChat(false);
-      setMessages([]);
-      
+      if (localStorage.getItem('lastRoom')) {
+        localStorage.removeItem('lastRoom');
+      }
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (socketError) {
       toast({
-        title: 'Chat Ended',
-        description: 'Your random chat has ended',
+        variant: "destructive",
+        title: "Connection Error",
+        description: socketError,
         duration: 5000,
       });
-    });
-    
-    // Listen for whiteboard data
-    socketRef.current.on('new_whiteboard_data', (data) => {
-      console.log("Received whiteboard data:", data?.substring(0, 20) + "...");
-      setWhiteboardData(data);
-    });
-  };
+    }
+  }, [socketError, toast]);
 
   const handleJoinRoom = (roomName: string) => {
-    console.log("Joining room:", roomName);
-    
-    if (roomName === 'random') {
-      console.log("Starting random chat match");
-      setIsRandomChat(true);
-      setCurrentRoom(roomName);
+    if (currentUser) {
+      console.log("Index: Joining room:", roomName, "Current user:", currentUser);
       
-      if (socketRef.current && user) {
-        socketRef.current.findRandomMatch(user);
+      if (connected) {
+        joinRoom(roomName, currentUser);
+        setCurrentRoom(roomName);
+        
+        if (roomName === 'random') {
+          toast({
+            description: "Looking for someone to chat with...",
+            duration: 3000,
+          });
+        } else if (roomName === 'general') {
+          toast({
+            description: "Welcome to the general chat room!",
+            duration: 3000,
+          });
+        } else if (roomName.startsWith(ROOM_PREFIXES.PRIVATE)) {
+          const roomCode = extractPrivateRoomCode(roomName);
+          toast({
+            description: `Joined private room with code: ${roomCode}`,
+            duration: 3000,
+          });
+        } else {
+          toast({
+            description: `Joined ${roomName}`,
+            duration: 3000,
+          });
+        }
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Connection Error",
+          description: "Unable to connect to chat. Please try again.",
+          duration: 5000,
+        });
+        console.error("Attempted to join room but socket is not connected");
       }
-      return;
-    }
-    
-    // Handle private rooms
-    if (isPrivateRoom(roomName)) {
-      const code = extractPrivateRoomCode(roomName);
-      setPrivateRoomCode(code);
     } else {
-      setPrivateRoomCode(null);
-    }
-    
-    if (currentRoom) {
-      // Leave current room first
-      socketRef.current?.leaveRoom(currentRoom);
-    }
-    
-    setCurrentRoom(roomName);
-    setMatchedUser(null);
-    setIsRandomChat(false);
-    
-    if (socketRef.current && user) {
-      socketRef.current.joinRoom(roomName, user);
+      console.error("Cannot join room: No current user");
     }
   };
 
   const handleLeaveRoom = () => {
-    if (currentRoom && socketRef.current) {
-      socketRef.current.leaveRoom(currentRoom);
+    if (currentUser && currentRoom) {
+      leaveRoom(currentRoom, currentUser);
+      setCurrentRoom(null);
       
-      if (isRandomChat) {
-        socketRef.current.endRandomChat();
+      if (currentRoom === 'random' && matchedUser) {
+        toast({
+          description: "You have disconnected from the chat",
+          duration: 3000,
+        });
       }
     }
-    
-    setCurrentRoom(null);
-    setMatchedUser(null);
-    setIsRandomChat(false);
-    setPrivateRoomCode(null);
-    setMessages([]);
+  };
+
+  const handleBackToGreeting = () => {
+    if (currentUser && currentRoom) {
+      leaveRoom(currentRoom, currentUser);
+      setCurrentRoom(null);
+      
+      toast({
+        description: "Returned to room selection",
+        duration: 3000,
+      });
+    }
   };
 
   const handleSendMessage = (content: string) => {
-    if (!currentRoom || !socketRef.current || !user) return;
-    
-    const newMessage: Message = {
-      id: generateId(),
-      content,
-      sender: user,
-      room: currentRoom,
-      timestamp: Date.now(),
-      reactions: []
-    };
-    
-    socketRef.current.sendMessage(newMessage);
+    if (currentUser && currentRoom) {
+      console.log("Index: Sending message:", content, "User:", currentUser, "Room:", currentRoom);
+      
+      const tempMessage = {
+        id: generateId(),
+        content,
+        sender: currentUser,
+        timestamp: Date.now(),
+        room: currentRoom,
+        reactions: [],
+        isLocal: true
+      };
+      
+      setLocalMessages(prev => [...prev, tempMessage]);
+      
+      sendMessage(content, currentUser, currentRoom);
+    } else {
+      console.error("Cannot send message - missing user or room:", { user: currentUser, room: currentRoom });
+    }
   };
 
   const handleSendVoiceMessage = (blob: Blob, audioUrl: string) => {
-    if (!currentRoom || !socketRef.current || !user) return;
-    
-    const newMessage: Message = {
-      id: generateId(),
-      content: "Voice message",
-      sender: user,
-      room: currentRoom,
-      timestamp: Date.now(),
-      reactions: [],
-      isVoiceMessage: true,
-      voiceUrl: audioUrl
+    if (currentUser && currentRoom) {
+      try {
+        console.log("Sending voice message with URL:", audioUrl);
+        
+        // Create a new FileReader to read the blob as base64
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          // The result is a base64 string representation of the file
+          const base64data = reader.result?.toString().split(',')[1]; // Remove the data URL prefix
+          
+          // Send the voice message
+          sendMessage("Voice message", currentUser, currentRoom, {
+            isVoiceMessage: true,
+            audioUrl: audioUrl,
+            audioData: base64data
+          });
+          
+          toast({
+            description: "Voice message sent",
+            duration: 3000,
+          });
+        };
+        
+        // Read the blob as a data URL (base64)
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error("Error creating voice message:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not send voice message. Please try again.",
+        });
+      }
+    } else {
+      console.error("Cannot send voice message - missing user or room");
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Cannot send voice message. Please try again.",
+      });
+    }
+  };
+
+  const handleSignOut = () => {
+    if (guestUser) {
+      setGuestUser(null);
+      localStorage.removeItem('chatUser');
+      handleLeaveRoom();
+      setCurrentRoom(null);
+    } else {
+      signOut();
+    }
+  };
+
+  const handleGuestSignIn = (guest: User) => {
+    console.log("Guest signed in:", guest);
+    const updatedGuest = {
+      ...guest,
+      online: true
     };
-    
-    socketRef.current.sendMessage(newMessage);
+    setGuestUser(updatedGuest);
+    toast({
+      description: `Welcome, ${guest.name}!`,
+      duration: 3000,
+    });
   };
 
   const handleAddReaction = (messageId: string, reaction: string) => {
-    if (!socketRef.current || !user) return;
-    
-    const reactionData = {
-      messageId,
-      reaction,
-      user,
-      room: currentRoom,
-      timestamp: Date.now()
-    };
-    
-    socketRef.current.sendMessage({
-      type: 'reaction',
-      ...reactionData
-    });
-    
-    // Optimistically update UI
-    setMessages(prevMessages => 
-      prevMessages.map(msg => {
-        if (msg.id === messageId) {
-          // Check if user already reacted with this emoji
-          const existingReactionIndex = msg.reactions?.findIndex(
-            r => r.user?.id === user.id && r.reaction === reaction
-          );
-          
-          let newReactions = [...(msg.reactions || [])];
-          
-          if (existingReactionIndex !== undefined && existingReactionIndex >= 0) {
-            // Remove the existing reaction (toggle behavior)
-            newReactions = [
-              ...newReactions.slice(0, existingReactionIndex),
-              ...newReactions.slice(existingReactionIndex + 1)
-            ];
-          } else {
-            // Add new reaction
-            newReactions.push({
-              reaction,
-              user,
-              timestamp: Date.now()
-            });
-          }
-          
-          return {
-            ...msg,
-            reactions: newReactions
-          };
-        }
-        return msg;
-      })
-    );
+    if (currentUser) {
+      console.log("Adding reaction:", reaction, "to message:", messageId, "by user:", currentUser.id);
+      addReaction(messageId, reaction, currentUser);
+    }
   };
 
   const handleCreateGroup = (name: string) => {
-    // TODO: Implement group creation functionality
+    const newGroup = {
+      id: 'group-' + Date.now(),
+      name,
+      users: [currentUser],
+      isGroup: true,
+      groupCode: generateGroupCode(),
+      createdBy: currentUser?.id
+    };
+    
+    setGroups(prev => [...prev, newGroup]);
     toast({
-      title: "Group Created",
-      description: `Created group: ${name}`,
-      duration: 3000
+      title: "Group created",
+      description: `'${name}' has been created. Group code: ${newGroup.groupCode}`,
+      duration: 5000,
     });
   };
 
   const handleJoinGroup = (code: string) => {
-    // TODO: Implement join group functionality
     toast({
-      title: "Joining Group",
       description: `Attempting to join group with code: ${code}`,
-      duration: 3000
+      duration: 3000,
     });
+    
+    const foundGroup = groups.find(group => group.groupCode === code);
+    
+    if (foundGroup) {
+      const updatedGroup = {
+        ...foundGroup,
+        users: [...foundGroup.users, currentUser]
+      };
+      
+      setGroups(prev => prev.map(g => g.id === foundGroup.id ? updatedGroup : g));
+      
+      handleJoinRoom(foundGroup.id);
+      
+      toast({
+        title: "Group joined",
+        description: `You've joined '${foundGroup.name}'`,
+        duration: 3000,
+      });
+    } else {
+      toast({
+        title: "Group not found",
+        description: "Please check the code and try again",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
   };
 
   const handleJoinGroupClick = (groupId: string) => {
-    // TODO: Implement join group click functionality
-    toast({
-      title: "Joining Group",
-      description: `Joining group: ${groupId}`,
-      duration: 3000
-    });
+    const group = groups.find(g => g.id === groupId);
+    
+    if (group) {
+      handleJoinRoom(groupId);
+      
+      toast({
+        description: `Joined ${group.name}`,
+        duration: 3000,
+      });
+    }
   };
 
   const handleAddFriend = (email: string) => {
-    // TODO: Implement add friend functionality
     toast({
-      title: "Friend Request Sent",
-      description: `Friend request sent to: ${email}`,
-      duration: 3000
-    });
-  };
-
-  const handleSignOut = () => {
-    handleLeaveRoom();
-    
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-    }
-    
-    // Clear stored data
-    LOGOUT_STORAGE_CLEANUP_ITEMS.forEach(item => {
-      localStorage.removeItem(item);
-    });
-    
-    signOut();
-    
-    toast({
-      description: "Signed out successfully",
+      title: "Friend request sent",
+      description: `Request sent to ${email}`,
       duration: 3000,
     });
   };
 
   const handleSendWhiteboardData = (data: any) => {
-    if (!currentRoom || !socketRef.current) return;
-    
-    socketRef.current.sendMessage({
-      type: 'whiteboard',
-      room: currentRoom,
-      data
-    });
+    console.log("Sending whiteboard data:", data);
+    sendWhiteboardData(data);
   };
 
-  const handleSendPoll = (pollData: any) => {
-    if (!currentRoom || !socketRef.current || !user) return;
+  const handleSendPoll = (pollData: Omit<PollData, 'id' | 'createdAt'>) => {
+    console.log("Creating poll:", pollData);
+    sendPoll(pollData);
     
-    const pollId = generateId();
-    const fullPollData = {
-      ...pollData,
-      id: pollId,
-      createdAt: Date.now(),
-      votes: []
-    };
-    
-    const newMessage: Message = {
-      id: generateId(),
-      content: `__POLL__:${JSON.stringify(fullPollData)}`,
-      sender: user,
-      room: currentRoom,
-      timestamp: Date.now(),
-      reactions: []
-    };
-    
-    socketRef.current.sendMessage(newMessage);
+    toast({
+      title: "Poll created",
+      description: `Poll "${pollData.question}" created successfully`,
+      duration: 3000,
+    });
   };
 
   const handleVotePoll = (pollId: string, optionId: string) => {
-    if (!currentRoom || !socketRef.current || !user) return;
+    console.log("Voting on poll:", pollId, "option:", optionId);
+    votePoll(pollId, optionId);
     
-    socketRef.current.sendMessage({
-      type: 'poll_vote',
-      pollId,
-      optionId,
-      user,
-      room: currentRoom,
-      timestamp: Date.now()
+    toast({
+      description: "Your vote has been recorded",
+      duration: 3000,
     });
-    
-    // Optimistically update UI
-    setMessages(prevMessages => 
-      prevMessages.map(msg => {
-        if (msg.content?.startsWith('__POLL__:')) {
-          try {
-            const pollData = JSON.parse(msg.content.replace('__POLL__:', ''));
-            if (pollData.id === pollId) {
-              // Update poll with new vote
-              const updatedPollData = {
-                ...pollData,
-                options: pollData.options.map((option: any) => {
-                  if (option.id === optionId) {
-                    return {
-                      ...option,
-                      votes: [...(option.votes || []), user.id]
-                    };
-                  }
-                  return option;
-                })
-              };
-              
-              return {
-                ...msg,
-                content: `__POLL__:${JSON.stringify(updatedPollData)}`
-              };
-            }
-          } catch (e) {
-            console.error('Error updating poll vote in UI:', e);
-          }
-        }
-        return msg;
-      })
-    );
   };
 
-  const handleSaveDrawing = (imageUrl: string) => {
-    if (!currentRoom || !socketRef.current || !user) return;
-    
-    const newMessage: Message = {
-      id: generateId(),
-      content: `Drawing shared`,
-      sender: user,
-      room: currentRoom,
-      timestamp: Date.now(),
-      reactions: [],
-      isDrawing: true,
-      drawingUrl: imageUrl
-    };
-    
-    socketRef.current.sendMessage(newMessage);
-  };
+  useEffect(() => {
+    console.log("Current room state:", currentRoom);
+    console.log("Online users:", onlineUsers);
+    console.log("Current user:", currentUser);
+    console.log("Current messages:", messages);
+  }, [currentRoom, onlineUsers, currentUser, messages]);
 
-  console.log("About to render based on currentRoom:", currentRoom);
-  console.log("Current room state:", currentRoom);
-  console.log("Online users:", onlineUsers);
-  console.log("Current user:", user);
-  console.log("Current messages:", messages);
-
-  // If not authenticated, show sign-in options
-  if (!isAuthenticated) {
+  if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
-        <GuestSignIn onGuestSignIn={(newUser) => {
-          if (useAuth().setUser) {
-            useAuth().setUser(newUser);
-          }
-        }} />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+        <div className="flex space-x-2 justify-center items-center">
+          <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse"></div>
+          <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse animation-delay-200"></div>
+          <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse animation-delay-400"></div>
+        </div>
+        <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
       </div>
     );
   }
 
-  // If authenticated but not in a room, show room selection
+  if (authError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-4">
+        <p className="text-destructive mb-4">Error: {authError}</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+  
+  console.log("About to render based on currentRoom:", currentRoom);
+  
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-4 animate-fade-in">
+        <div className="text-center max-w-md mb-8">
+          <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-transparent bg-clip-text">Verbo</h1>
+          <p className="text-muted-foreground mb-6">A beautiful, real-time messaging experience</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+          <div className="glass p-8 rounded-2xl shadow-xl bg-white/80 backdrop-blur border border-white/20">
+            <h2 className="text-xl font-semibold mb-4 text-center">Sign In</h2>
+            <Button 
+              onClick={signIn}
+              className="w-full text-white bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 shadow-md"
+            >
+              Sign in with Google
+            </Button>
+            
+            <p className="mt-4 text-xs text-center text-muted-foreground">
+              Secure, simple, elegant
+            </p>
+          </div>
+          
+          <div className="glass rounded-2xl shadow-xl bg-white/80 backdrop-blur border border-white/20">
+            <GuestSignIn onGuestSignIn={handleGuestSignIn} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentRoom === 'random' && isWaitingForMatch) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-4 animate-fade-in">
+        <div className="text-center max-w-md mb-8">
+          <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-transparent bg-clip-text">Random Chat</h1>
+          <p className="text-muted-foreground mb-6">Looking for someone to chat with...</p>
+          <div className="flex space-x-2 justify-center items-center mb-6">
+            <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse"></div>
+            <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse animation-delay-200"></div>
+            <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse animation-delay-400"></div>
+          </div>
+          <Button 
+            onClick={handleLeaveRoom}
+            className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!currentRoom) {
     return (
       <JoinRoom 
-        user={user}
-        onJoin={handleJoinRoom}
+        user={currentUser} 
+        onJoin={handleJoinRoom} 
         onSignOut={handleSignOut}
         connected={connected}
         reconnecting={reconnecting}
-        error={connError}
+        error={socketError}
+        onBackToLogin={undefined}
       />
     );
   }
 
-  // If in a room, show chat interface
+  const privateRoomCode = isPrivateRoom(currentRoom) ? extractPrivateRoomCode(currentRoom) : null;
+
   return (
     <ChatInterface
-      user={user}
+      user={currentUser}
       messages={messages}
       onlineUsers={onlineUsers}
       roomName={currentRoom}
@@ -486,14 +479,20 @@ export default function Index() {
       onSendWhiteboardData={handleSendWhiteboardData}
       onSendPoll={handleSendPoll}
       onVotePoll={handleVotePoll}
+      onBackToGreeting={handleBackToGreeting}
       groups={groups}
       friends={friends}
       matchedUser={matchedUser}
-      isRandomChat={isRandomChat}
+      isRandomChat={currentRoom === 'random' && matchedUser !== null}
       whiteboardData={whiteboardData}
       connected={connected}
       privateRoomCode={privateRoomCode}
-      onSaveDrawing={handleSaveDrawing}
     />
   );
+};
+
+export default Index;
+function generateGroupCode() {
+  throw new Error('Function not implemented.');
 }
+

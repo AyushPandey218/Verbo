@@ -1,22 +1,23 @@
+import { formatDistanceToNow } from 'date-fns';
+
+// Define types
 export interface User {
-  inRandomChat: any;
   id: string;
   name: string;
   email: string;
   photoURL: string;
   online: boolean;
-  isGuest: boolean;
-  lastActive?: number;
+  isGuest?: boolean;
+  friends?: string[]; // Array of friend user IDs
+  lastActive?: number; // Timestamp of the user's last activity
+  leftAt?: number; // Timestamp when user went offline
+  joinedAt?: number; // Timestamp when user joined (came online)
 }
 
-export interface Room {
-  id: string;
-  name: string;
-  description: string;
-  owner: User;
-  createdAt: number;
-  isPrivate: boolean;
-  code?: string;
+export interface Reaction {
+  user: User;
+  reaction: string;
+  timestamp: number;
 }
 
 export interface Message {
@@ -25,47 +26,66 @@ export interface Message {
   sender: User;
   timestamp: number;
   room: string;
-  reactions: Reaction[];
+  reactions?: Reaction[];
   isVoiceMessage?: boolean;
   voiceUrl?: string;
-  isDrawing?: boolean;
-  drawingUrl?: string;
 }
 
-export interface Reaction {
-  reaction: string;
-  user: User;
+export interface Room {
+  id: string;
+  name: string;
+  users: User[];
+  isGroup?: boolean;
+  groupCode?: string;
+  createdBy?: string;
+  privateCode?: string; // Add private code property
+}
+
+export interface FriendRequest {
+  id: string;
+  from: User;
+  to: User;
+  status: 'pending' | 'accepted' | 'rejected';
   timestamp: number;
 }
 
+// Generate a unique ID
 export const generateId = (): string => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return Math.random().toString(36).substring(2, 15) + 
+         Math.random().toString(36).substring(2, 15);
 };
 
+// Generate a group code
+export const generateGroupCode = (): string => {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
+// Format timestamp in a friendly way
+export const formatTimestamp = (timestamp: number): string => {
+  return formatDistanceToNow(timestamp, { addSuffix: true });
+};
+
+// Check if a message is from the current user
+export const isOwnMessage = (message: Message, userId: string): boolean => {
+  return message.sender.id === userId;
+};
+
+// Get a greeting based on the time of day
 export const getGreeting = (): string => {
   const hour = new Date().getHours();
-  if (hour < 12) {
-    return 'Good morning';
-  } else if (hour < 18) {
-    return 'Good afternoon';
-  } else {
-    return 'Good evening';
-  }
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 };
 
-// Helper function to check if a room is a private room
-export const isPrivateRoom = (roomName: string): boolean => {
-  return roomName.startsWith('private-');
-};
-
-// Helper function to extract the private room code from a room name
-export const extractPrivateRoomCode = (roomName: string): string | null => {
-  if (!isPrivateRoom(roomName)) return null;
-  
-  // Format is 'private-CODE-roomname' so get the second segment
-  const parts = roomName.split('-');
-  if (parts.length >= 2) {
-    return parts[1];
-  }
-  return null;
+// Create a guest user
+export const createGuestUser = (name: string): User => {
+  return {
+    id: 'guest-' + generateId(),
+    name: name || 'Guest User',
+    email: 'guest@verbo.chat',
+    photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name || 'guest'}`,
+    online: true,
+    isGuest: true
+  };
 };
