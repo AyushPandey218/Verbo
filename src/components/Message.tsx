@@ -104,8 +104,10 @@ const Message: React.FC<MessageProps> = ({
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  const isGif = message.content.startsWith('[GIF](') && message.content.endsWith(')');
-  const gifUrl = isGif ? message.content.slice(6, -1) : null;
+  const gifRegex = /^\[GIF\]\((.*?)\)$/;
+  const gifMatch = message.content.match(gifRegex);
+  const isGif = !!gifMatch;
+  const gifUrl = isGif ? gifMatch[1] : null;
 
   return (
     <div 
@@ -135,12 +137,19 @@ const Message: React.FC<MessageProps> = ({
           )}
         >
           {isGif ? (
-            <img 
-              src={gifUrl} 
-              alt="GIF" 
-              className="max-w-[240px] rounded-lg"
-              loading="lazy"
-            />
+            <div className="gif-container">
+              <img 
+                src={gifUrl} 
+                alt="GIF" 
+                className="max-w-[240px] rounded-lg"
+                loading="lazy"
+                onError={(e) => {
+                  console.error("Failed to load GIF:", gifUrl);
+                  const target = e.target as HTMLImageElement;
+                  target.src = "https://via.placeholder.com/240x135?text=GIF+Error";
+                }}
+              />
+            </div>
           ) : message.isVoiceMessage ? (
             <div className="flex flex-col min-w-[200px] w-64">
               <div className="flex items-center gap-2 mb-2">

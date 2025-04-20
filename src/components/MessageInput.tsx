@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Mic, PenTool, BarChart, Image, Smile, PaperclipIcon, Clock } from 'lucide-react';
+import { Send, Mic, PenTool, BarChart, Smile, Image, Gif } from 'lucide-react';
 import VoiceMessageRecorder from './VoiceMessageRecorder';
 import Poll, { PollData } from './Poll';
 import ActionToolbar from './ActionToolbar';
@@ -47,16 +47,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
       setMessage(''); // Clear input immediately for better UX
       
       try {
-        // Add a small delay to prevent rapid firing of multiple messages
         setTimeout(() => {
           onSend(currentMessage);
         }, 50);
       } catch (error) {
         console.error("Error sending message:", error);
-        // If there's an error, restore the message
         setMessage(currentMessage);
       } finally {
-        // Short delay to prevent double submissions
         setTimeout(() => {
           setIsSubmitting(false);
         }, 500);
@@ -68,19 +65,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
     if (onOpenWhiteboard) {
       onOpenWhiteboard();
     }
-    // Close other panels if open
     setIsRecording(false);
     setIsPollOpen(false);
   };
 
   const handlePollClick = () => {
     setIsPollOpen(true);
-    // Close other panels if open
     setIsRecording(false);
   };
 
   const handleVoiceMessageClick = () => {
-    // Only start recording if we're not already submitting or recording
     if (!isSubmitting && !disabled && !isRecording) {
       setIsRecording(true);
       setIsPollOpen(false);
@@ -98,7 +92,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
         duration: 3000,
       });
       
-      // Add a small delay to prevent rapid firing of multiple messages
       setTimeout(() => {
         onSendVoice(blob, audioUrl);
       }, 50);
@@ -113,7 +106,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
     } finally {
       setIsRecording(false);
       
-      // Short delay to prevent double submissions
       setTimeout(() => {
         setIsSubmitting(false);
       }, 500);
@@ -125,14 +117,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
       setIsSubmitting(true);
       
       try {
-        // Add a small delay to prevent rapid firing of multiple messages
+        console.log("Sending GIF with URL:", gifUrl);
         setTimeout(() => {
           onSend(`[GIF](${gifUrl})`);
         }, 50);
       } catch (error) {
         console.error("Error sending GIF:", error);
       } finally {
-        // Short delay to prevent double submissions
         setTimeout(() => {
           setIsSubmitting(false);
         }, 500);
@@ -143,15 +134,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const insertEmoji = (emoji: string) => {
     setMessage(prev => prev + emoji);
     setIsEmojiPickerOpen(false);
-    // Focus the input after inserting emoji
     if (inputRef.current) {
       inputRef.current.focus();
     }
   };
 
-  // Common emoji options
   const commonEmojis = ['😊', '👍', '❤️', '😂', '🙌', '🎉', '🔥', '👏', '😍', '🤔', '😮', '👋', '🙏', '✅', '⭐'];
-  
+
   return (
     <div className="p-3 bg-white shadow-sm w-full transition-all duration-300 ease-in-out">
       {isRecording ? (
@@ -221,8 +210,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
                   </div>
                 </PopoverContent>
               </Popover>
-
-              <TenorPicker onSelect={handleSendGif} />
             </div>
           </div>
           
@@ -280,7 +267,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 <TooltipContent side="top">Voice Message</TooltipContent>
               </Tooltip>
               
-              <TenorPicker onSelect={handleSendGif} />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TenorPicker onSelect={handleSendGif} />
+                </TooltipTrigger>
+                <TooltipContent side="top">GIF</TooltipContent>
+              </Tooltip>
               
               <Tooltip>
                 <TooltipTrigger asChild>

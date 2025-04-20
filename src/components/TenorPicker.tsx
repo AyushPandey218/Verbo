@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { GifIcon } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -19,16 +20,36 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [gifs, setGifs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const searchGifs = useCallback(async (term: string) => {
     setLoading(true);
+    setError(null);
+    
     try {
       const searchEndpoint = `${TENOR_API_URL}/search?q=${encodeURIComponent(term)}&key=${TENOR_API_KEY}&client_key=verbo_chat&limit=20`;
+      console.log('Searching GIFs with endpoint:', searchEndpoint);
+      
       const response = await fetch(searchEndpoint);
+      
+      if (!response.ok) {
+        throw new Error(`Tenor API error: ${response.status} ${response.statusText}`);
+      }
+      
       const data = await response.json();
-      setGifs(data.results || []);
+      console.log('Tenor search response:', data);
+      
+      if (data.results && Array.isArray(data.results)) {
+        setGifs(data.results);
+      } else {
+        console.error('Invalid Tenor API response format:', data);
+        setError('Invalid response from Tenor API');
+        setGifs([]);
+      }
     } catch (error) {
       console.error('Error fetching GIFs:', error);
+      setError('Failed to fetch GIFs. Please try again.');
+      setGifs([]);
     } finally {
       setLoading(false);
     }
@@ -36,13 +57,32 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
 
   const getFeaturedGifs = useCallback(async () => {
     setLoading(true);
+    setError(null);
+    
     try {
       const featuredEndpoint = `${TENOR_API_URL}/featured?key=${TENOR_API_KEY}&client_key=verbo_chat&limit=20`;
+      console.log('Fetching featured GIFs with endpoint:', featuredEndpoint);
+      
       const response = await fetch(featuredEndpoint);
+      
+      if (!response.ok) {
+        throw new Error(`Tenor API error: ${response.status} ${response.statusText}`);
+      }
+      
       const data = await response.json();
-      setGifs(data.results || []);
+      console.log('Tenor featured response:', data);
+      
+      if (data.results && Array.isArray(data.results)) {
+        setGifs(data.results);
+      } else {
+        console.error('Invalid Tenor API response format:', data);
+        setError('Invalid response from Tenor API');
+        setGifs([]);
+      }
     } catch (error) {
       console.error('Error fetching featured GIFs:', error);
+      setError('Failed to fetch GIFs. Please try again.');
+      setGifs([]);
     } finally {
       setLoading(false);
     }
@@ -56,16 +96,23 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
 
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
-      if (searchTerm) {
+      if (searchTerm && isOpen) {
         searchGifs(searchTerm);
       }
     }, 500);
 
     return () => clearTimeout(delayDebounce);
-  }, [searchTerm, searchGifs]);
+  }, [searchTerm, searchGifs, isOpen]);
 
   const handleSelectGif = (gif: any) => {
+    // Check if gif has the required format
+    if (!gif.media_formats || !gif.media_formats.gif || !gif.media_formats.gif.url) {
+      console.error('Invalid GIF format:', gif);
+      return;
+    }
+    
     const gifUrl = gif.media_formats.gif.url;
+    console.log('Selected GIF URL:', gifUrl);
     onSelect(gifUrl);
     setIsOpen(false);
   };
@@ -78,13 +125,7 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
           size="icon"
           className="rounded-full h-10 w-10 bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
-            <path d="M7 3v6"/>
-            <path d="M17 3v6"/>
-            <path d="M21 9V7a2 2 0 0 0-2-2h-4"/>
-            <path d="M3 9V7a2 2 0 0 1 2-2h4"/>
-          </svg>
+          <GifIcon size={18} />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
@@ -101,6 +142,16 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
+          ) : error ? (
+            <div className="flex items-center justify-center h-full text-center p-4">
+              <p className="text-sm text-muted-foreground">{error}</p>
+            </div>
+          ) : gifs.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-center p-4">
+              <p className="text-sm text-muted-foreground">
+                {searchTerm ? `No GIFs found for "${searchTerm}"` : "No featured GIFs available"}
+              </p>
+            </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 p-2">
               {gifs.map((gif) => (
@@ -109,11 +160,18 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
                   onClick={() => handleSelectGif(gif)}
                   className="aspect-video rounded overflow-hidden hover:opacity-90 transition-opacity"
                 >
-                  <img
-                    src={gif.media_formats.tinygif.url}
-                    alt={gif.content_description}
-                    className="w-full h-full object-cover"
-                  />
+                  {gif.media_formats && gif.media_formats.tinygif && gif.media_formats.tinygif.url ? (
+                    <img
+                      src={gif.media_formats.tinygif.url}
+                      alt={gif.content_description || "GIF"}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                      <span className="text-xs text-gray-500">GIF unavailable</span>
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
@@ -123,4 +181,5 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
     </Popover>
   );
 };
+
 export default TenorPicker;
