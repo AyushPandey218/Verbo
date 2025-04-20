@@ -1,142 +1,213 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Gift, Search, X, Loader2 } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Gift } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { GIF_API_KEY, GIF_API_URL } from '@/utils/config';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
-
-// Tenor API Key - this is a public API key
-const TENOR_API_KEY = "AIzaSyAr_Rv9eJ4C0T-jZ2sKTsyHaUI1Z-Yh0nk";
-const TENOR_LIMIT = 12;
+import { Loader2 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 interface TenorPickerProps {
   onSelect: (gifUrl: string) => void;
-  disabled?: boolean;
 }
 
-const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect, disabled = false }) => {
+const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [gifs, setGifs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  const fetchGifs = async (searchTerm: string = '') => {
+  const searchGifs = useCallback(async (term: string) => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
+      const searchEndpoint = `${GIF_API_URL}/search?api_key=${GIF_API_KEY}&q=${encodeURIComponent(term)}&limit=20&rating=pg-13`;
+      console.log('Searching GIFs with endpoint:', searchEndpoint);
       
-      let url = `https://tenor.googleapis.com/v2/featured?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}`;
-      
-      if (searchTerm) {
-        url = `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchTerm)}&key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}`;
-      }
-      
-      const response = await fetch(url);
+      const response = await fetch(searchEndpoint);
       
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw new Error(`GIPHY API error: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log('GIPHY search response:', data);
       
-      if (!data.results) {
+      if (data.data && Array.isArray(data.data)) {
+        setGifs(data.data);
+      } else {
+        console.error('Invalid GIPHY API response format:', data);
+        setError('Invalid response from GIPHY API');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to get GIFs from GIPHY API",
+        });
         setGifs([]);
-        return;
       }
-      
-      setGifs(data.results);
-    } catch (err) {
-      console.error('Error fetching GIFs:', err);
-      setError('Failed to load GIFs');
+    } catch (error) {
+      console.error('Error fetching GIFs:', error);
+      setError('Failed to fetch GIFs. Please try again.');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch GIFs. Please try again.",
+      });
       setGifs([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  const getTrendingGifs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const trendingEndpoint = `${GIF_API_URL}/trending?api_key=${GIF_API_KEY}&limit=20&rating=pg-13`;
+      console.log('Fetching trending GIFs with endpoint:', trendingEndpoint);
+      
+      const response = await fetch(trendingEndpoint);
+      
+      if (!response.ok) {
+        throw new Error(`GIPHY API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('GIPHY trending response:', data);
+      
+      if (data.data && Array.isArray(data.data)) {
+        setGifs(data.data);
+      } else {
+        console.error('Invalid GIPHY API response format:', data);
+        setError('Invalid response from GIPHY API');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to get trending GIFs",
+        });
+        setGifs([]);
+      }
+    } catch (error) {
+      console.error('Error fetching trending GIFs:', error);
+      setError('Failed to fetch GIFs. Please try again.');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch GIFs. Please try again.",
+      });
+      setGifs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
     if (isOpen) {
-      fetchGifs();
+      getTrendingGifs();
     }
-  }, [isOpen]);
+  }, [isOpen, getTrendingGifs]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (search.trim()) {
-      fetchGifs(search);
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      if (searchTerm && isOpen) {
+        searchGifs(searchTerm);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchTerm, searchGifs, isOpen]);
+
+  const handleSelectGif = (gif: any) => {
+    // Get the GIF URL from GIPHY's data structure
+    let gifUrl = null;
+    
+    if (gif.images && gif.images.fixed_height) {
+      gifUrl = gif.images.fixed_height.url;
+    } else if (gif.images && gif.images.original) {
+      gifUrl = gif.images.original.url;
+    } else if (gif.images && gif.images.downsized) {
+      gifUrl = gif.images.downsized.url;
     }
-  };
-
-  const handleSelectGif = (gifUrl: string) => {
+    
+    if (!gifUrl) {
+      console.error('Could not find valid GIF URL in format:', gif);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Invalid GIF format. Please try another one.",
+      });
+      return;
+    }
+    
+    console.log('Selected GIF URL:', gifUrl);
     onSelect(gifUrl);
     setIsOpen(false);
-    setSearch('');
   };
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button
-          type="button"
-          size="icon"
           variant="outline"
-          disabled={disabled}
+          size="icon"
           className="rounded-full h-10 w-10 bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
         >
           <Gift size={18} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 sm:w-96 p-3 shadow-lg" align="end">
-        <form onSubmit={handleSearch} className="flex gap-2 mb-3">
+      <PopoverContent className="w-80 p-0" align="end">
+        <div className="p-2 border-b">
           <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search GIFs..."
-            className="flex-1"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full"
           />
-          <Button type="submit" variant="secondary" size="icon">
-            <Search size={16} />
-          </Button>
-        </form>
-
-        <ScrollArea className="h-64">
+        </div>
+        <ScrollArea className="h-[300px]">
           {loading ? (
-            <div className="flex justify-center items-center h-full">
+            <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : error ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>{error}</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => fetchGifs()} 
-                className="mt-2"
-              >
-                Try Again
-              </Button>
+            <div className="flex items-center justify-center h-full text-center p-4">
+              <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           ) : gifs.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No GIFs found</p>
+            <div className="flex items-center justify-center h-full text-center p-4">
+              <p className="text-sm text-muted-foreground">
+                {searchTerm ? `No GIFs found for "${searchTerm}"` : "No GIFs available"}
+              </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 p-2">
               {gifs.map((gif) => (
                 <button
                   key={gif.id}
-                  type="button"
-                  className="overflow-hidden rounded-md hover:ring-2 hover:ring-indigo-500 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  onClick={() => handleSelectGif(gif.media_formats.gif.url)}
+                  onClick={() => handleSelectGif(gif)}
+                  className="aspect-video rounded overflow-hidden hover:opacity-90 transition-opacity"
                 >
-                  <img
-                    src={gif.media_formats.tinygif.url}
-                    alt="GIF"
-                    loading="lazy"
-                    className="w-full h-auto object-cover"
-                  />
+                  {gif.images && gif.images.fixed_width_small ? (
+                    <img
+                      src={gif.images.fixed_width_small.url}
+                      alt={gif.title || "GIF"}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                      <span className="text-xs text-gray-500">GIF unavailable</span>
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
