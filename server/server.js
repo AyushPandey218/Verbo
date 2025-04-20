@@ -32,6 +32,10 @@ const users = new Map();
 const rooms = new Map();
 const messages = new Map();
 
+// In-memory storage for random chat matching
+const randomChatQueue = new Set();
+const activeRandomChats = new Map();
+
 // Health check endpoint
 app.get('/', (req, res) => {
   res.send('Socket.io server is running');
@@ -95,8 +99,88 @@ io.on('connection', (socket) => {
     io.to(message.room).emit('chat message', message);
   });
 
+  socket.on('find_random_match', (data) => {
+    const { user } = data;
+    console.log(`User ${user.name} is looking for a random match`);
+    
+    // Check if user is already in a random chat
+    if (activeRandomChats.has(socket.id)) {
+      return;
+    }
+    
+    // Find a match from the waiting queue
+    for (const waitingSocketId of randomChatQueue) {
+      const waitingSocket = io.sockets.sockets.get(waitingSocketId);
+      if (waitingSocket && waitingSocket.connected) {
+        // Match found!
+        randomChatQueue.delete(waitingSocketId);
+        const waitingUser = users.get(waitingSocketId);
+        
+        if (waitingUser) {
+          // Create a unique room for the matched users
+          const randomRoomName = 'random-' + Math.random().toString(36).substring(2);
+          
+          // Join both users to the room
+          socket.join(randomRoomName);
+          waitingSocket.join(randomRoomName);
+          
+          // Store the match information
+          activeRandomChats.set(socket.id, {
+            roomName: randomRoomName,
+            partnerId: waitingSocketId
+          });
+          activeRandomChats.set(waitingSocketId, {
+            roomName: randomRoomName,
+            partnerId: socket.id
+          });
+          
+          // Notify both users about the match
+          io.to(socket.id).emit('random_match_found', { matchedUser: waitingUser });
+          io.to(waitingSocketId).emit('random_match_found', { matchedUser: user });
+          
+          return;
+        }
+      }
+    }
+    
+    // No match found, add user to waiting queue
+    randomChatQueue.add(socket.id);
+  });
+
+  socket.on('end_random_chat', () => {
+    const matchInfo = activeRandomChats.get(socket.id);
+    if (matchInfo) {
+      const { roomName, partnerId } = matchInfo;
+      
+      // Remove both users from the room
+      socket.leave(roomName);
+      const partnerSocket = io.sockets.sockets.get(partnerId);
+      if (partnerSocket) {
+        partnerSocket.leave(roomName);
+      }
+      
+      // Clean up the match data
+      activeRandomChats.delete(socket.id);
+      activeRandomChats.delete(partnerId);
+      
+      // Notify both users that the chat has ended
+      io.to(socket.id).emit('random_match_ended');
+      io.to(partnerId).emit('random_match_ended');
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
+    
+    // Clean up random chat data
+    randomChatQueue.delete(socket.id);
+    const matchInfo = activeRandomChats.get(socket.id);
+    if (matchInfo) {
+      const { roomName, partnerId } = matchInfo;
+      activeRandomChats.delete(socket.id);
+      activeRandomChats.delete(partnerId);
+      io.to(partnerId).emit('random_match_ended');
+    }
     
     const user = users.get(socket.id);
     if (user) {
