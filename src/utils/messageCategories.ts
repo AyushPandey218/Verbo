@@ -1,7 +1,12 @@
-export type MessageCategory = 'General' | 'Question' | 'Greeting' | 'Request' | 'Response';
+export type MessageCategory = 'General' | 'Question' | 'Greeting' | 'Request' | 'Response' | 'Media';
 
 export function categorizeMessage(message: string): MessageCategory {
   if (!message) return 'General';
+  
+  // Check if this is a GIF message
+  if (message.startsWith('[GIF](') && message.endsWith(')')) {
+    return 'Media';
+  }
   
   const lowerMessage = message.toLowerCase();
   
@@ -36,3 +41,17 @@ export function categorizeMessage(message: string): MessageCategory {
   
   return 'General';
 }
+
+// Helper function to check if a message contains a GIF
+export function isGifMessage(message: string): boolean {
+  return typeof message === 'string' && message.startsWith('[GIF](') && message.endsWith(')');
+}
+
+// Helper function to extract GIF URL from a message
+export function extractGifUrl(message: string): string | null {
+  if (isGifMessage(message)) {
+    return message.substring(5, message.length - 1);
+  }
+  return null;
+}
+

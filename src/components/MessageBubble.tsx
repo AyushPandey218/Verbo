@@ -42,7 +42,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
     }
   }
   
-  // Extract GIF URL if it's a GIF message
   const gifUrl = isGifMessage 
     ? message.content.substring(5, message.content.length - 1)
     : null;
