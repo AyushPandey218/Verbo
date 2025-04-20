@@ -9,6 +9,7 @@ import PollMessage from './PollMessage';
 import { Volume2, PlayCircle, PauseCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import MessageInsights from './MessageInsights';
+import { isGifMessage } from '@/utils/messageCategories';
 
 interface MessageBubbleProps {
   message: Message;
@@ -29,7 +30,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
   const isSender = message.sender.id === user.id;
   
   const isPollMessage = message.content?.startsWith('__POLL__:');
-  const isGifMessage = typeof message.content === 'string' && message.content.startsWith('[GIF](') && message.content.endsWith(')');
+  const isGif = isGifMessage(message.content);
   
   let pollData = null;
   if (isPollMessage && onVotePoll) {
@@ -42,7 +43,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
     }
   }
   
-  const gifUrl = isGifMessage 
+  const gifUrl = isGif 
     ? message.content.substring(5, message.content.length - 1)
     : null;
 
@@ -209,7 +210,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
               </div>
             </div>
           </div>
-        ) : isGifMessage && gifUrl ? (
+        ) : isGif && gifUrl ? (
           <div className={`rounded-2xl overflow-hidden ${
             isSender 
               ? 'chat-bubble-user shadow-sm' 

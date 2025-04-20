@@ -10,6 +10,7 @@ import {
 import MessageReactions from './MessageReactions';
 import { Volume2, Play, Pause } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { isGifMessage } from '@/utils/messageCategories';
 
 interface MessageProps {
   message: MessageType;
@@ -103,11 +104,8 @@ const Message: React.FC<MessageProps> = ({
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Improved GIF detection with better regex handling
-  const gifRegex = /^\[GIF\]\((.*?)\)$/;
-  const gifMatch = typeof message.content === 'string' ? message.content.match(gifRegex) : null;
-  const isGif = !!gifMatch;
-  const gifUrl = isGif ? gifMatch[1] : null;
+  const isGif = isGifMessage(message.content);
+  const gifUrl = isGif ? message.content.substring(5, message.content.length - 1) : null;
 
   return (
     <div 
@@ -141,7 +139,7 @@ const Message: React.FC<MessageProps> = ({
               <img 
                 src={gifUrl} 
                 alt="GIF" 
-                className="max-w-[240px] rounded-lg"
+                className="max-w-[240px] max-h-[180px] rounded-lg object-contain"
                 loading="lazy"
                 onError={(e) => {
                   console.error("Failed to load GIF:", gifUrl);
