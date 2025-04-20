@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { GiftIcon } from 'lucide-react';
+import { Gift } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -10,6 +10,7 @@ import {
 import { TENOR_API_KEY, TENOR_API_URL } from '@/utils/config';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 interface TenorPickerProps {
   onSelect: (gifUrl: string) => void;
@@ -21,6 +22,7 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
   const [gifs, setGifs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const searchGifs = useCallback(async (term: string) => {
     setLoading(true);
@@ -44,55 +46,75 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
       } else {
         console.error('Invalid Tenor API response format:', data);
         setError('Invalid response from Tenor API');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to get GIFs from Tenor API",
+        });
         setGifs([]);
       }
     } catch (error) {
       console.error('Error fetching GIFs:', error);
       setError('Failed to fetch GIFs. Please try again.');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch GIFs. Please try again.",
+      });
       setGifs([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
-  const getFeaturedGifs = useCallback(async () => {
+  const getTrendingGifs = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const featuredEndpoint = `${TENOR_API_URL}/featured?key=${TENOR_API_KEY}&client_key=verbo_chat&limit=20`;
-      console.log('Fetching featured GIFs with endpoint:', featuredEndpoint);
+      const trendingEndpoint = `${TENOR_API_URL}/trending?key=${TENOR_API_KEY}&client_key=verbo_chat&limit=20`;
+      console.log('Fetching trending GIFs with endpoint:', trendingEndpoint);
       
-      const response = await fetch(featuredEndpoint);
+      const response = await fetch(trendingEndpoint);
       
       if (!response.ok) {
         throw new Error(`Tenor API error: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log('Tenor featured response:', data);
+      console.log('Tenor trending response:', data);
       
       if (data.results && Array.isArray(data.results)) {
         setGifs(data.results);
       } else {
         console.error('Invalid Tenor API response format:', data);
         setError('Invalid response from Tenor API');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to get trending GIFs",
+        });
         setGifs([]);
       }
     } catch (error) {
-      console.error('Error fetching featured GIFs:', error);
+      console.error('Error fetching trending GIFs:', error);
       setError('Failed to fetch GIFs. Please try again.');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch GIFs. Please try again.",
+      });
       setGifs([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (isOpen) {
-      getFeaturedGifs();
+      getTrendingGifs();
     }
-  }, [isOpen, getFeaturedGifs]);
+  }, [isOpen, getTrendingGifs]);
 
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
@@ -105,13 +127,27 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
   }, [searchTerm, searchGifs, isOpen]);
 
   const handleSelectGif = (gif: any) => {
-    // Check if gif has the required format
-    if (!gif.media_formats || !gif.media_formats.gif || !gif.media_formats.gif.url) {
-      console.error('Invalid GIF format:', gif);
+    // Get the GIF URL from the media_formats object
+    let gifUrl = null;
+    
+    if (gif.media_formats && gif.media_formats.gif && gif.media_formats.gif.url) {
+      gifUrl = gif.media_formats.gif.url;
+    } else if (gif.media_formats && gif.media_formats.mediumgif && gif.media_formats.mediumgif.url) {
+      gifUrl = gif.media_formats.mediumgif.url;
+    } else if (gif.url) {
+      gifUrl = gif.url;
+    }
+    
+    if (!gifUrl) {
+      console.error('Could not find valid GIF URL in format:', gif);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Invalid GIF format. Please try another one.",
+      });
       return;
     }
     
-    const gifUrl = gif.media_formats.gif.url;
     console.log('Selected GIF URL:', gifUrl);
     onSelect(gifUrl);
     setIsOpen(false);
@@ -125,7 +161,7 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
           size="icon"
           className="rounded-full h-10 w-10 bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
         >
-          <GiftIcon size={18} />
+          <Gift size={18} />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
@@ -149,7 +185,7 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
           ) : gifs.length === 0 ? (
             <div className="flex items-center justify-center h-full text-center p-4">
               <p className="text-sm text-muted-foreground">
-                {searchTerm ? `No GIFs found for "${searchTerm}"` : "No featured GIFs available"}
+                {searchTerm ? `No GIFs found for "${searchTerm}"` : "No GIFs available"}
               </p>
             </div>
           ) : (
@@ -183,3 +219,4 @@ const TenorPicker: React.FC<TenorPickerProps> = ({ onSelect }) => {
 };
 
 export default TenorPicker;
+

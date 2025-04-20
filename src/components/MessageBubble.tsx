@@ -204,6 +204,24 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, user, onAddReact
               </div>
             </div>
           </div>
+        ) : message.content.startsWith('[GIF](') && message.content.endsWith(')') ? (
+          <div className={`rounded-2xl p-2 ${
+            isSender 
+              ? 'chat-bubble-user shadow-sm shadow-violet-200' 
+              : 'chat-bubble-other'
+          } transition-all max-w-[240px]`}>
+            <img 
+              src={message.content.substring(5, message.content.length - 1)} 
+              alt="GIF" 
+              className="rounded-lg max-w-full h-auto"
+              loading="lazy"
+              onError={(e) => {
+                console.error("Failed to load GIF:", message.content);
+                const target = e.target as HTMLImageElement;
+                target.src = "https://via.placeholder.com/240x135?text=GIF+Error";
+              }}
+            />
+          </div>
         ) : (
           <>
             <div 

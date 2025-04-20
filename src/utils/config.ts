@@ -158,6 +158,7 @@ export const REMOVE_USER_FROM_FIREBASE_ON_LOGOUT = true;
 // Force clearing all messages on logout
 export const CLEAR_MESSAGES_ON_LOGOUT = true;
 
-// Tenor API configuration
-export const TENOR_API_KEY = "AIzaSyCOfzm3WUavBRWwFzOeQjXEorrneXpWz1w";
+// Tenor API Configuration
+export const TENOR_API_KEY = "LIVDSRZULELA"; // This is a public demo key from Tenor's documentation
 export const TENOR_API_URL = "https://tenor.googleapis.com/v2";
+
