@@ -5,7 +5,8 @@ import { useSocket } from '@/hooks/useSocket';
 import ChatInterface from '@/components/ChatInterface';
 import JoinRoom from '@/components/JoinRoom';
 import GuestSignIn from '@/components/GuestSignIn';
-import { User, generateId } from '@/utils/messageUtils';import { useToast } from '@/components/ui/use-toast';
+import { User, generateId } from '@/utils/messageUtils';
+import { useToast } from '@/components/ui/use-toast';
 import { PollData } from '@/components/Poll';
 import { DEBUG_CONNECTION_STATUS, ROOM_PREFIXES, extractPrivateRoomCode, isPrivateRoom } from '@/utils/config';
 
@@ -495,4 +496,3 @@ export default Index;
 function generateGroupCode() {
   throw new Error('Function not implemented.');
 }
-

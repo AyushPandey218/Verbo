@@ -1,11 +1,11 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { User } from '../utils/messageUtils';
-import { Button } from '@/components/ui/button';
+import { User } from '@/utils/messageUtils';
 import { LOGOUT_STORAGE_CLEANUP_ITEMS, THOROUGH_LOGOUT_CLEANUP } from '@/utils/config';
+import { Button } from '@/components/ui/button';
 
+// Update the interface to be more precise
 interface AuthContextType {
-  setUser: any;
+  setUser: (user: User | null) => void;
   user: User | null;
   loading: boolean;
   error: string | null;
@@ -303,7 +303,7 @@ export const useAuth = () => {
 // Extend the Window interface to include Google and socket
 declare global {
   interface Window {
-    google: {
+    google?: {
       accounts: {
         id: {
           initialize: (config: any) => void;
@@ -313,7 +313,7 @@ declare global {
         };
       };
     };
-    socket?: any; // Add socket to the Window interface
-    firebase?: any; // Add firebase to the Window interface
+    socket?: any;
+    firebase?: any;
   }
 }
