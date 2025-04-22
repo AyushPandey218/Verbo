@@ -4,9 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { User, getGreeting, generateId } from '@/utils/messageUtils';
-import { MessageCircle, Users, LogOut, AlertTriangle, Key, Share2, Copy, ArrowLeft } from 'lucide-react';
+import { MessageCircle, Users, LogOut, AlertTriangle, Key, Share2, Copy, ArrowLeft, Loader } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import ConnectionStatus from './ConnectionStatus';
+import { Progress } from './ui/progress';
+import { Skeleton } from './ui/skeleton';
+import { useAuth } from '@/hooks/useAuth';
 
 interface JoinRoomProps {
   user: User;
@@ -48,25 +51,59 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
   const [privateCode, setPrivateCode] = useState('');
   const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
   const [createdRoomCode, setCreatedRoomCode] = useState<string | null>(privateRoomCode);
+  const [searchingForMatch, setSearchingForMatch] = useState(false);
+  const [searchProgress, setSearchProgress] = useState(0);
   const greeting = getGreeting();
   const { toast } = useToast();
 
   const handleJoinPreset = (roomId: string) => {
     console.log(`Joining preset room: ${roomId}`, user);
-    onJoin(roomId);
     
-    if (!connected) {
+    if (roomId === 'random') {
+      setSearchingForMatch(true);
+      
+      if (user) {
+        const updatedUser = { ...user, searchingForMatch: true };
+        if (useAuth().setUser) {
+          useAuth().setUser(updatedUser);
+        }
+      }
+      
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += 2;
+        setSearchProgress(progress);
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+        }
+      }, 100);
+      
+      setTimeout(() => {
+        onJoin(roomId);
+        setSearchingForMatch(false);
+        clearInterval(progressInterval);
+      }, 3000);
+      
       toast({
-        variant: "destructive",
-        title: "Connection Warning",
-        description: "Using fallback mode. Your ability to connect with others may be limited.",
-        duration: 5000,
-      });
-    } else {
-      toast({
-        description: `Joining ${roomId === 'general' ? 'general chat room' : 'random match'}...`,
+        description: "Looking for a random match...",
         duration: 3000,
       });
+    } else {
+      onJoin(roomId);
+      
+      if (!connected) {
+        toast({
+          variant: "destructive",
+          title: "Connection Warning",
+          description: "Using fallback mode. Your ability to connect with others may be limited.",
+          duration: 5000,
+        });
+      } else {
+        toast({
+          description: `Joining ${roomId === 'general' ? 'general chat room' : 'random match'}...`,
+          duration: 3000,
+        });
+      }
     }
   };
 
@@ -75,11 +112,9 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
     
     if (!customRoom.trim()) return;
     
-    // Generate a unique private code for this room
     const privateRoomCode = generateId().substring(0, 6).toUpperCase();
     setCreatedRoomCode(privateRoomCode);
     
-    // Create the room ID with the private code embedded
     const roomId = `private-${privateRoomCode}-${customRoom.trim().toLowerCase().replace(/\s+/g, '-')}`;
     console.log(`Creating private room: ${roomId}`, user);
     onJoin(roomId);
@@ -106,7 +141,6 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
     if (!privateCode.trim()) return;
     
     const roomCode = privateCode.trim().toUpperCase();
-    // Convert private code to a room ID format - ONLY use the code without any extra names
     const roomId = `private-${roomCode}`;
     console.log(`Joining private room with code: ${roomCode}`, user);
     onJoin(roomId);
@@ -201,6 +235,45 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
         </div>
       )}
       
+      {searchingForMatch && (
+        <div className="w-full max-w-[340px] sm:max-w-md mb-4 px-4 py-4 bg-violet-100 border border-violet-300 rounded-md">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="h-12 w-12 flex items-center justify-center rounded-full bg-violet-200 text-violet-700">
+              <Loader className="h-6 w-6 animate-spin" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-violet-800">Looking for a match</h3>
+              <p className="text-xs text-violet-700">Searching for someone to chat with...</p>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Progress value={searchProgress} className="h-2" indicatorClassName="bg-violet-500" />
+            <div className="flex justify-between">
+              <span className="text-xs text-violet-700">Searching</span>
+              <span className="text-xs text-violet-700">{searchProgress}%</span>
+            </div>
+          </div>
+          
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded-full bg-violet-200/50" />
+              <div className="space-y-1">
+                <Skeleton className="h-3 w-20 bg-violet-200/50" />
+                <Skeleton className="h-2 w-32 bg-violet-200/50" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded-full bg-violet-200/50" />
+              <div className="space-y-1">
+                <Skeleton className="h-3 w-24 bg-violet-200/50" />
+                <Skeleton className="h-2 w-28 bg-violet-200/50" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <Card className="w-full max-w-[340px] sm:max-w-md shadow-xl overflow-hidden border border-gray-100 bg-white/80 backdrop-blur">
         <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-purple-500/5 z-0"></div>
         
@@ -247,6 +320,7 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
                     variant="outline"
                     className="w-full justify-between h-auto py-2.5 sm:py-3 px-3 sm:px-4 transition-all hover:bg-gradient-to-r hover:from-violet-500/10 hover:to-indigo-500/10 hover:border-violet-200 group"
                     onClick={() => handleJoinPreset(room.id)}
+                    disabled={searchingForMatch}
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
                       <div className="bg-violet-100 p-1.5 sm:p-2 rounded-full">
@@ -274,6 +348,7 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
                 size="sm"
                 className={`flex-1 ${activeTab === 'create' ? 'bg-gradient-to-r from-violet-500 to-purple-600' : ''}`}
                 onClick={() => setActiveTab('create')}
+                disabled={searchingForMatch}
               >
                 Create Room
               </Button>
@@ -283,6 +358,7 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
                 size="sm"
                 className={`flex-1 ${activeTab === 'join' ? 'bg-gradient-to-r from-violet-500 to-purple-600' : ''}`}
                 onClick={() => setActiveTab('join')}
+                disabled={searchingForMatch}
               >
                 Join Private
               </Button>
@@ -295,10 +371,11 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
                   onChange={(e) => setCustomRoom(e.target.value)}
                   placeholder="Enter room name"
                   className="flex-1 text-sm"
+                  disabled={searchingForMatch}
                 />
                 <Button 
                   type="submit" 
-                  disabled={!customRoom.trim()}
+                  disabled={!customRoom.trim() || searchingForMatch}
                   className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-sm whitespace-nowrap"
                 >
                   Create
@@ -311,10 +388,11 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
                   onChange={(e) => setPrivateCode(e.target.value)}
                   placeholder="Enter room code"
                   className="flex-1 text-sm"
+                  disabled={searchingForMatch}
                 />
                 <Button 
                   type="submit" 
-                  disabled={!privateCode.trim()}
+                  disabled={!privateCode.trim() || searchingForMatch}
                   className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-sm whitespace-nowrap"
                 >
                   Join

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { LOGOUT_STORAGE_CLEANUP_ITEMS, THOROUGH_LOGOUT_CLEANUP } from '@/utils/config';
 
 interface AuthContextType {
+  setUser: any;
   user: User | null;
   loading: boolean;
   error: string | null;
@@ -276,7 +277,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, setUser, loading, error, signIn, signOut }}>
       {children}
       {/* Hidden but styled fallback Google sign-in button */}
       <div 
@@ -290,7 +291,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     </AuthContext.Provider>
   );
 };
-
 // Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);

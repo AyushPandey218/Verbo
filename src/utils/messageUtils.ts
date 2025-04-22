@@ -12,6 +12,8 @@ export interface User {
   lastActive?: number; // Timestamp of the user's last activity
   leftAt?: number; // Timestamp when user went offline
   joinedAt?: number; // Timestamp when user joined (came online)
+  inRandomChat?: boolean;
+  searchingForMatch?: boolean;
 }
 
 export interface Reaction {
