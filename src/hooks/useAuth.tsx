@@ -1,12 +1,15 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { User } from '../utils/messageUtils';
-import { Button } from '@/components/ui/button';
+import { User } from '@/utils/messageUtils';
 import { LOGOUT_STORAGE_CLEANUP_ITEMS, THOROUGH_LOGOUT_CLEANUP } from '@/utils/config';
+import { Button } from '@/components/ui/button';
+import AppLoading from '@/components/AppLoading';
 
+// Update the interface to be more precise
 interface AuthContextType {
+  setUser: (user: User | null) => void;
   user: User | null;
   loading: boolean;
+  isAuthLoading: boolean; // New state for auth loading specifically
   error: string | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -19,11 +22,12 @@ interface AuthProviderProps {
 }
 
 // Replace this with your actual Google OAuth Client ID
-const GOOGLE_CLIENT_ID = '962065436296-udarokfj067go8681gdvpel605vnmfpq.apps.googleusercontent.com'; 
+const GOOGLE_CLIENT_ID = '962065436296-udarokfj067go8681gdvpel605vnmfpq.apps.googleusercontent.com';
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(false); // New state for auth loading
   const [error, setError] = useState<string | null>(null);
   const [googleInitialized, setGoogleInitialized] = useState<boolean>(false);
 
@@ -180,10 +184,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         setUser(newUser);
         localStorage.setItem('chatUser', JSON.stringify(newUser));
+        
+        // We're done with authentication loading
+        setIsAuthLoading(false);
         setLoading(false);
       } catch (err) {
         console.error("Error processing Google sign-in:", err);
         setError("Failed to process sign-in information");
+        setIsAuthLoading(false);
         setLoading(false);
       }
     }
@@ -191,6 +199,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signIn = async (): Promise<void> => {
     try {
+      setIsAuthLoading(true); // Set auth loading state
       setLoading(true);
       
       if (!window.google || !googleInitialized) {
@@ -216,6 +225,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         } else {
           console.error("Fallback button not found");
           setError("Sign-in not available. Please try again later.");
+          setIsAuthLoading(false);
           setLoading(false);
         }
       }, 1000);
@@ -224,6 +234,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error during sign in';
       setError(errorMessage);
+      setIsAuthLoading(false);
       setLoading(false);
       throw new Error(errorMessage);
     }
@@ -246,11 +257,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     setUser(mockUser);
     localStorage.setItem('chatUser', JSON.stringify(mockUser));
-    setLoading(false);
+    
+    // After small delay to show loading screen
+    setTimeout(() => {
+      setIsAuthLoading(false);
+      setLoading(false);
+    }, 1000);
+    
     console.log("Created mock Google user for testing");
   };
+  
   const signOut = async (): Promise<void> => {
     try {
+      setIsAuthLoading(true); // Set auth loading state for sign out too
       setLoading(true);
       
       if (window.google) {
@@ -265,18 +284,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Clean up user data including last room data
       cleanupUserData();
       
-      setUser(null);
-      setLoading(false);
+      // Small delay to show loading screen
+      setTimeout(() => {
+        setUser(null);
+        setIsAuthLoading(false);
+        setLoading(false);
+      }, 1000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error during sign out';
       setError(errorMessage);
+      setIsAuthLoading(false);
       setLoading(false);
       throw new Error(errorMessage);
     }
   };
 
+  // Show loading screen when auth operations are in progress
+  if (isAuthLoading) {
+    return <AppLoading />;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, error, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, setUser, loading, isAuthLoading, error, signIn, signOut }}>
       {children}
       {/* Hidden but styled fallback Google sign-in button */}
       <div 
@@ -303,7 +332,7 @@ export const useAuth = () => {
 // Extend the Window interface to include Google and socket
 declare global {
   interface Window {
-    google: {
+    google?: {
       accounts: {
         id: {
           initialize: (config: any) => void;
@@ -313,7 +342,8 @@ declare global {
         };
       };
     };
-    socket?: any; // Add socket to the Window interface
-    firebase?: any; // Add firebase to the Window interface
+    socket?: any;
+    firebase?: any;
   }
 }
+
