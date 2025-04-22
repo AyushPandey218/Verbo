@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-=======
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { User } from '@/utils/messageUtils';
-import { LOGOUT_STORAGE_CLEANUP_ITEMS, THOROUGH_LOGOUT_CLEANUP } from '@/utils/config';
-import { Button } from '@/components/ui/button';
->>>>>>> parent of 8191ebe (a)
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User } from '../utils/messageUtils';
@@ -283,11 +276,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   return (
-<<<<<<< HEAD
     <AuthContext.Provider value={{ user, loading, error, signIn, signOut }}>
-=======
-    <AuthContext.Provider value={{ user, setUser, loading, error, signIn, signOut }}>
->>>>>>> parent of 8191ebe (a)
       {children}
       {/* Hidden but styled fallback Google sign-in button */}
       <div 
@@ -301,6 +290,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     </AuthContext.Provider>
   );
 };
+
 // Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
