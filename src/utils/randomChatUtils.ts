@@ -1,4 +1,3 @@
-
 import { User } from './messageUtils';
 
 export const findRandomMatch = (users: User[], currentUserId: string): User | null => {
@@ -33,6 +32,14 @@ export const createRandomChatRoomId = (user1Id: string, user2Id: string): string
 // Helper to check if a user is currently searching for a match
 export const isUserSearchingForMatch = (user: User): boolean => {
   return user.searchingForMatch === true;
+};
+
+// New utility to cancel search
+export const cancelSearch = (user: User): User => {
+  return {
+    ...user,
+    searchingForMatch: false
+  };
 };
 
 

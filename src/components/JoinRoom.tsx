@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -189,6 +188,23 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
     }
   };
 
+  const handleCancelSearch = () => {
+    setSearchingForMatch(false);
+    setSearchProgress(0);
+    
+    if (user) {
+      const updatedUser = { ...user, searchingForMatch: false };
+      if (useAuth().setUser) {
+        useAuth().setUser(updatedUser);
+      }
+    }
+    
+    toast({
+      description: "Search cancelled",
+      duration: 3000,
+    });
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 animate-fade-in bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
       <div className="w-full max-w-[340px] sm:max-w-md text-center mb-4 sm:mb-6 px-2">
@@ -254,6 +270,15 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
               <span className="text-xs text-violet-700">{searchProgress}%</span>
             </div>
           </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCancelSearch}
+            className="w-full mt-4 border-violet-300 text-violet-700 hover:bg-violet-200"
+          >
+            Cancel Search
+          </Button>
           
           <div className="mt-3 space-y-2">
             <div className="flex items-center gap-2">
