@@ -22,7 +22,7 @@ interface AuthProviderProps {
 }
 
 // Replace this with your actual Google OAuth Client ID
-const GOOGLE_CLIENT_ID = '962065436296-udarokfj067go8681gdvpel605vnmfpq.apps.googleusercontent.com'; 
+const GOOGLE_CLIENT_ID = '962065436296-udarokfj067go8681gdvpel605vnmfpq.apps.googleusercontent.com';
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
