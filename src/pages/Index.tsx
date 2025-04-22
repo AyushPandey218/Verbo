@@ -5,13 +5,12 @@ import { useSocket } from '@/hooks/useSocket';
 import ChatInterface from '@/components/ChatInterface';
 import JoinRoom from '@/components/JoinRoom';
 import GuestSignIn from '@/components/GuestSignIn';
-import { User, generateId } from '@/utils/messageUtils';import { useToast } from '@/hooks/use-toast';
+import { User, generateId } from '@/utils/messageUtils';import { useToast } from '@/components/ui/use-toast';
 import { PollData } from '@/components/Poll';
 import { DEBUG_CONNECTION_STATUS, ROOM_PREFIXES, extractPrivateRoomCode, isPrivateRoom } from '@/utils/config';
-import AppLoading from '@/components/AppLoading';
 
 const Index = () => {
-  const { user, loading, isAuthLoading, error: authError, signIn, signOut } = useAuth();
+  const { user, loading, error: authError, signIn, signOut } = useAuth();
   const [guestUser, setGuestUser] = useState<User | null>(null);
   const currentUser = user || guestUser;
   const { toast } = useToast();
@@ -369,12 +368,17 @@ const Index = () => {
     console.log("Current messages:", messages);
   }, [currentRoom, onlineUsers, currentUser, messages]);
 
-  if (isAuthLoading) {
-    return <AppLoading />;
-  }
-
   if (loading) {
-    return <AppLoading />;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+        <div className="flex space-x-2 justify-center items-center">
+          <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse"></div>
+          <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse animation-delay-200"></div>
+          <div className="h-3 w-3 bg-violet-500 rounded-full animate-pulse animation-delay-400"></div>
+        </div>
+        <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
   }
 
   if (authError) {
@@ -488,7 +492,7 @@ const Index = () => {
 };
 
 export default Index;
-
 function generateGroupCode() {
   throw new Error('Function not implemented.');
 }
+
