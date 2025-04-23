@@ -16,9 +16,9 @@ A beautiful, real-time messaging experience built with React, Socket.io, and Tai
 
 ## IMPORTANT: Firebase Setup Required
 
-**This application requires Firebase to work properly.** The demo Firebase project used as a fallback has limited capacity and may not work reliably.
+**This application requires Firebase to work properly.** If you don't set up Firebase correctly, the chat functionality will not work reliably.
 
-Follow these easy steps to set up your own Firebase project (it's free):
+Follow these easy steps to set up your own Firebase project :
 
 1. Go to the [Firebase Console](https://console.firebase.google.com/)
 2. Sign in with your Google account
@@ -50,18 +50,6 @@ Follow these easy steps to set up your own Firebase project (it's free):
 2. Replace the values in the `defaultFirebaseConfig` object with your own Firebase config values
 3. Rebuild and deploy your app
 
-### Option 2: Use Environment Variables (Recommended for Production)
-
-For local development, create a `.env` file in the root of your project:
-```
-VITE_FIREBASE_API_KEY=your-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
-VITE_FIREBASE_APP_ID=your-app-id
-VITE_FIREBASE_DATABASE_URL=https://your-project-id-default-rtdb.firebaseio.com
-```
 
 ## Vercel Deployment with Your Firebase Config
 
@@ -79,7 +67,7 @@ When deploying to Vercel, you need to add your Firebase environment variables to
 3. Click "Save" to update your project settings
 4. Redeploy your project for the changes to take effect
 
-**IMPORTANT:** Without a proper Firebase configuration, the chat functionality will not work reliably. The default Firebase project is rate-limited and may be unavailable.
+**IMPORTANT:** Without a proper Firebase configuration, the chat functionality will not work reliably. 
 
 ## Local Development
 

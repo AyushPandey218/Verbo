@@ -7,7 +7,7 @@ const cors = require('cors');
 
 const app = express();
 
-// Enable CORS
+
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST'],
@@ -24,7 +24,7 @@ const io = new Server(httpServer, {
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
-  path: '/socket.io' // Use a consistent path
+  path: '/socket.io' 
 });
 
 // In-memory storage
