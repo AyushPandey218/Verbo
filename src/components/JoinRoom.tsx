@@ -1,4 +1,5 @@
-import React, { FormEvent, useState } from 'react';
+
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,44 +53,107 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
 
   const handleJoinPreset = (roomId: string) => {
     console.log(`Joining preset room: ${roomId}`, user);
+    onJoin(roomId);
     
-    // Make sure the onJoin function is called properly
-    if (typeof onJoin === 'function') {
-      onJoin(roomId);
-      
-      if (!connected) {
-        toast({
-          variant: "destructive",
-          title: "Connection Warning",
-          description: "Using fallback mode. Your ability to connect with others may be limited.",
-          duration: 5000,
-        });
-      } else {
-        toast({
-          description: `Joining ${roomId === 'general' ? 'general chat room' : 'random match'}...`,
-          duration: 3000,
-        });
-      }
+    if (!connected) {
+      toast({
+        variant: "destructive",
+        title: "Connection Warning",
+        description: "Using fallback mode. Your ability to connect with others may be limited.",
+        duration: 5000,
+      });
     } else {
-      console.error("onJoin is not a function", onJoin);
+      toast({
+        description: `Joining ${roomId === 'general' ? 'general chat room' : 'random match'}...`,
+        duration: 3000,
+      });
     }
   };
 
-  function handleJoinPrivate(event: FormEvent<HTMLFormElement>): void {
-    throw new Error('Function not implemented.');
-  }
+  const handleJoinCustom = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!customRoom.trim()) return;
+    
+    // Generate a unique private code for this room
+    const privateRoomCode = generateId().substring(0, 6).toUpperCase();
+    setCreatedRoomCode(privateRoomCode);
+    
+    // Create the room ID with the private code embedded
+    const roomId = `private-${privateRoomCode}-${customRoom.trim().toLowerCase().replace(/\s+/g, '-')}`;
+    console.log(`Creating private room: ${roomId}`, user);
+    onJoin(roomId);
+    setCustomRoom('');
+    
+    if (!connected) {
+      toast({
+        variant: "destructive",
+        title: "Connection Warning",
+        description: "Using fallback mode. Your ability to connect with others may be limited.",
+        duration: 5000,
+      });
+    } else {
+      toast({
+        description: `Created private room: ${customRoom}`,
+        duration: 3000,
+      });
+    }
+  };
 
-  function handleJoinCustom(event: FormEvent<HTMLFormElement>): void {
-    throw new Error('Function not implemented.');
-  }
+  const handleJoinPrivate = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!privateCode.trim()) return;
+    
+    const roomCode = privateCode.trim().toUpperCase();
+    // Convert private code to a room ID format - ONLY use the code without any extra names
+    const roomId = `private-${roomCode}`;
+    console.log(`Joining private room with code: ${roomCode}`, user);
+    onJoin(roomId);
+    setPrivateCode('');
+    
+    if (!connected) {
+      toast({
+        variant: "destructive",
+        title: "Connection Warning",
+        description: "Using fallback mode. Your ability to connect with others may be limited.",
+        duration: 5000,
+      });
+    } else {
+      toast({
+        description: `Joining private room with code: ${roomCode}`,
+        duration: 3000,
+      });
+    }
+  };
 
-  function handleSignOut(event: React.MouseEvent<HTMLButtonElement>): void {
-    throw new Error('Function not implemented.');
-  }
-  function handleCopyRoomCode(event: React.MouseEvent<HTMLButtonElement>): void {
-    throw new Error('Function not implemented.');
-  }
-  // ... keep existing code (handleJoinCustom, handleJoinPrivate, handleSignOut, handleBackToLogin, handleCopyRoomCode functions)
+  const handleSignOut = () => {
+    onSignOut();
+    toast({
+      description: user.isGuest ? "Exited guest mode" : "Signed out successfully",
+      duration: 3000,
+    });
+  };
+
+  const handleBackToLogin = () => {
+    if (onBackToLogin) {
+      onBackToLogin();
+      toast({
+        description: "Returned to login screen",
+        duration: 3000,
+      });
+    }
+  };
+
+  const handleCopyRoomCode = () => {
+    if (createdRoomCode) {
+      navigator.clipboard.writeText(createdRoomCode);
+      toast({
+        description: "Room code copied to clipboard",
+        duration: 3000,
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 animate-fade-in bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
@@ -147,7 +211,7 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  onClick={onBackToLogin} 
+                  onClick={handleBackToLogin} 
                   className="text-gray-500 hover:text-gray-700"
                   title="Back to Login"
                 >
@@ -183,7 +247,6 @@ const JoinRoom: React.FC<JoinRoomProps> = ({
                     variant="outline"
                     className="w-full justify-between h-auto py-2.5 sm:py-3 px-3 sm:px-4 transition-all hover:bg-gradient-to-r hover:from-violet-500/10 hover:to-indigo-500/10 hover:border-violet-200 group"
                     onClick={() => handleJoinPreset(room.id)}
-                    type="button" // Add explicit type="button" to ensure it's treated as a button
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
                       <div className="bg-violet-100 p-1.5 sm:p-2 rounded-full">
