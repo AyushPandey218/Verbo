@@ -170,7 +170,7 @@ export const useSocket = (initialUser: User | null) => {
         socketRef.current.on('random_match_found', (data: { matchedUser: User }) => {
           console.log("Random match found:", data.matchedUser);
           setMatchedUser(data.matchedUser);
-          setIsWaitingForMatch(true);
+          setIsWaitingForMatch(false);
         });
         
         socketRef.current.on('random_match_ended', () => {
